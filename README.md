@@ -6,6 +6,8 @@ http://code.google.com/p/ptx-kmod/
 https://github.com/m-tsudo/pt3
 
 この辺を参考にしながら。
+今のところ、全く動きません。
+
 以下オリジナル版のREADME
 
 
