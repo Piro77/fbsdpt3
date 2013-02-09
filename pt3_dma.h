@@ -22,11 +22,18 @@
 #include "pt3_bus.h"
 #include "pt3_i2c.h"
 
+
 typedef struct _PT3_DMA_PAGE {
 	dma_addr_t addr;
 	__u8 *data;
 	__u32 size;
 	__u32 data_pos;
+#if defined(__FreeBSD__)
+        bus_dmamap_t map;
+        uint32_t *pa;
+        void *va;
+#endif
+
 } PT3_DMA_PAGE;
 
 typedef struct __PT3_DMA {
@@ -38,7 +45,11 @@ typedef struct __PT3_DMA {
 	__u32 ts_count;
 	PT3_DMA_PAGE *ts_info;
 	__u32 ts_pos;
+#if defined(__FreeBSD__)
+	struct mtx lock;
+#else
 	struct mutex lock;
+#endif
 } PT3_DMA;
 
 void pt3_dma_build_page_descriptor(PT3_DMA *dma, int loop);
@@ -49,7 +60,7 @@ int pt3_dma_ready(PT3_DMA *dma);
 void pt3_dma_reset(PT3_DMA *dma);
 __u32 pt3_dma_get_status(PT3_DMA *dma);
 __u32 pt3_dma_get_ts_error_packet_count(PT3_DMA *dma);
-PT3_DMA * create_pt3_dma(struct pci_dev *hwdev, PT3_I2C *i2c, int tuner_no);
-void free_pt3_dma(struct pci_dev *hwdev, PT3_DMA *dma);
+PT3_DMA * create_pt3_dma(void *scp, PT3_I2C *i2c, int tuner_no);
+void free_pt3_dma(void *scp, PT3_DMA *dma);
 
 #endif

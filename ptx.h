@@ -9,6 +9,8 @@
 #include <sys/kernel.h>
 #include <sys/condvar.h>
 
+#include "pt3_misc.h"
+
 // ------------------------------------------------------------------------
 
 // pci
@@ -16,61 +18,61 @@
 #define DMA_BUFFER_PAGE_COUNT 511
 #define DMA_VIRTUAL_COUNTXSIZE (4*16)
 
-#define MAX_STREAM	4 // ¥Á¥ã¥Í¥ë¿ô
+#define MAX_STREAM	4 // ãƒãƒ£ãƒãƒ«æ•°
 
 #define FALSE		0
 #define TRUE		1
-#define MAX_TUNER	2 //¥Á¥å¡¼¥Ê¿ô
+#define MAX_TUNER	2 //ãƒãƒ¥ãƒ¼ãƒŠæ•°
 
-#define PACKET_SIZE	188 // 1¥Ñ¥±¥Ã¥ÈÄ¹
-#define MAX_READ_BLOCK	4 // 1ÅÙ¤ËÆÉ¤ß½Ğ¤¹ºÇÂçDMA¥Ğ¥Ã¥Õ¥¡¿ô
+#define PACKET_SIZE	188 // 1ãƒ‘ã‚±ãƒƒãƒˆé•·
+#define MAX_READ_BLOCK	4 // 1åº¦ã«èª­ã¿å‡ºã™æœ€å¤§DMAãƒãƒƒãƒ•ã‚¡æ•°
 
 
 //iic
-#define FIFO_GO			0x04 // FIFO¼Â¹Ô
-#define FIFO_DONE		0x80 // FIFO ¼Â¹ÔÃæ¥Ó¥Ã¥È
+#define FIFO_GO			0x04 // FIFOå®Ÿè¡Œ
+#define FIFO_DONE		0x80 // FIFO å®Ÿè¡Œä¸­ãƒ“ãƒƒãƒˆ
 
-#define FIFO_GO_ADDR		0x00 // FIFO ¼Â¹Ô¥¢¥É¥ì¥¹
-#define FIFO_RESULT_ADDR	0x00 // FIFO ·ë²Ì¾ğÊó
+#define FIFO_GO_ADDR		0x00 // FIFO å®Ÿè¡Œã‚¢ãƒ‰ãƒ¬ã‚¹
+#define FIFO_RESULT_ADDR	0x00 // FIFO çµæœæƒ…å ±
 #define CFG_REGS_ADDR		0x04
-#define I2C_RESULT_ADDR		0x08 // I2C½èÍı·ë²Ì
-#define FIFO_ADDR		0x10 // FIFO¤Ë½ñ¤¯¥¢¥É¥ì¥¹
-#define DMA_ADDR		0x14 // DMAÀßÄê¤Ë½ñ¤¯¥¢¥É¥ì¥¹
+#define I2C_RESULT_ADDR		0x08 // I2Cå‡¦ç†çµæœ
+#define FIFO_ADDR		0x10 // FIFOã«æ›¸ãã‚¢ãƒ‰ãƒ¬ã‚¹
+#define DMA_ADDR		0x14 // DMAè¨­å®šã«æ›¸ãã‚¢ãƒ‰ãƒ¬ã‚¹
 #define TS_TEST_ENABLE_ADDR	(0x02 * 4) //
 #define TS_GRAY_ADDR		(0x03 * 4)
 
-// DMA¥¨¥é¡¼ÄêµÁ
-#define MICROPACKET_ERROR	1 // Micro Packet¥¨¥é¡¼
+// DMAã‚¨ãƒ©ãƒ¼å®šç¾©
+#define MICROPACKET_ERROR	1 // Micro Packetã‚¨ãƒ©ãƒ¼
 #define BIT_RAM_OVERFLOW	(1 << 3)
 #define BIT_INITIATOR_ERROR	(1 << 4)
 #define BIT_INITIATOR_WARNING	(1 << 5)
 
 #define PROGRAM_ADDRESS	1024
 
-// I2C¥Ç¡¼¥¿°ÌÃÖÄêµÁ
-#define I2C_ADDRESS	10 // I2C¥¢¥É¥ì¥¹(10¥Ó¥Ã¥È)
+// I2Cãƒ‡ãƒ¼ã‚¿ä½ç½®å®šç¾©
+#define I2C_ADDRESS	10 // I2Cã‚¢ãƒ‰ãƒ¬ã‚¹(10ãƒ“ãƒƒãƒˆ)
 
 #define I2C_DATA_EN	10
 #define I2C_CLOCK	11
-#define I2C_WRITE_MODE	12 // I2C½ñ¤­¹ş¤ß¡¿ÆÉ¤ß¹ş¤ß
+#define I2C_WRITE_MODE	12 // I2Cæ›¸ãè¾¼ã¿ï¼èª­ã¿è¾¼ã¿
 #define I2C_BUSY	13
-#define I2C_DATA	18 // I2C¥Ç¡¼¥¿(18¥Ó¥Ã¥È)
+#define I2C_DATA	18 // I2Cãƒ‡ãƒ¼ã‚¿(18ãƒ“ãƒƒãƒˆ)
 
-// I2CÄêµÁ
-#define WRITE_EN	1 // ½ñ¤­¹ş¤ß
-#define READ_EN		0 // ÆÉ¤ß¹ş¤ß
-#define DATA_EN		1 // ¥Ç¡¼¥¿¤¢¤ê
-#define DATA_DIS	0 // ¥Ç¡¼¥¿¤Ê¤·
-#define CLOCK_EN	1 // CLOCK¤¢¤ê
-#define CLOCK_DIS	0 // CLOCK¤Ê¤·
-#define BUSY_EN		1 // BUSY¤¢¤ê
-#define BUSY_DIS	0 // BUSY¤Ê¤·
+// I2Cå®šç¾©
+#define WRITE_EN	1 // æ›¸ãè¾¼ã¿
+#define READ_EN		0 // èª­ã¿è¾¼ã¿
+#define DATA_EN		1 // ãƒ‡ãƒ¼ã‚¿ã‚ã‚Š
+#define DATA_DIS	0 // ãƒ‡ãƒ¼ã‚¿ãªã—
+#define CLOCK_EN	1 // CLOCKã‚ã‚Š
+#define CLOCK_DIS	0 // CLOCKãªã—
+#define BUSY_EN		1 // BUSYã‚ã‚Š
+#define BUSY_DIS	0 // BUSYãªã—
 
 #define PCI_LOCKED	1
 #define RAM_LOCKED	2
 #define RAM_SHIFT	4
 
-// ¥Ó¥Ã¥È
+// ãƒ“ãƒƒãƒˆ
 #define WRITE_PCI_RESET		(1 << 16)
 #define WRITE_PCI_RESET_	(1 << 24)
 #define WRITE_RAM_RESET		(1 << 17)
@@ -85,22 +87,22 @@
 #define XC3S_PCI_CLOCK		(512 / 4)
 #define XC3S_PCI_CLOCK_PT2	(166)
 
-// I2C¥¢¥É¥ì¥¹ÄêµÁ
-#define T0_ISDB_S	0x1b // ¥Á¥å¡¼¥Ê0 ISDB-S
-#define T1_ISDB_S	0x19 // ¥Á¥å¡¼¥Ê1 ISDB-S
+// I2Cã‚¢ãƒ‰ãƒ¬ã‚¹å®šç¾©
+#define T0_ISDB_S	0x1b // ãƒãƒ¥ãƒ¼ãƒŠ0 ISDB-S
+#define T1_ISDB_S	0x19 // ãƒãƒ¥ãƒ¼ãƒŠ1 ISDB-S
 
-#define T0_ISDB_T	0x1a // ¥Á¥å¡¼¥Ê0 ISDB-T
-#define T1_ISDB_T	0x18 // ¥Á¥å¡¼¥Ê1 ISDB-T
+#define T0_ISDB_T	0x1a // ãƒãƒ¥ãƒ¼ãƒŠ0 ISDB-T
+#define T1_ISDB_T	0x18 // ãƒãƒ¥ãƒ¼ãƒŠ1 ISDB-T
 
 
 //tuner
 #define DATA_CHUNK_SIZE		(PACKET_SIZE * 16)
 #define DATA_CHUNK_NUM		1024
 
-// ¥Á¥å¡¼¥Ê¾õÂÖÄêµÁ
-#define MAX_BS_TS_ID		8 // TS-ID¼èÆÀºÇÂçÃÍ
-#define MAX_ISDB_T_INFO		3 // ÃÏ¥Ç¥¸³¬ÁØ¾ğÊó¿ô
-#define MAX_ISDB_T_INFO_LEN	2 // ÃÏ¥Ç¥¸³¬ÁØ¾ğÊó¿ô
+// ãƒãƒ¥ãƒ¼ãƒŠçŠ¶æ…‹å®šç¾©
+#define MAX_BS_TS_ID		8 // TS-IDå–å¾—æœ€å¤§å€¤
+#define MAX_ISDB_T_INFO		3 // åœ°ãƒ‡ã‚¸éšå±¤æƒ…å ±æ•°
+#define MAX_ISDB_T_INFO_LEN	2 // åœ°ãƒ‡ã‚¸éšå±¤æƒ…å ±æ•°
 
 
 
@@ -113,24 +115,25 @@ enum {
 };
 
 enum {
-	STATE_STOP,		// ½é´ü²½Ä¾¸å
-	STATE_START,		// ÄÌ¾ï
-	STATE_FULL		// ¥¹¥È¥Ã¥Ñ¡¼
+	STATE_STOP,		// åˆæœŸåŒ–ç›´å¾Œ
+	STATE_START,		// é€šå¸¸
+	STATE_FULL		// ã‚¹ãƒˆãƒƒãƒ‘ãƒ¼
 };
 
 enum {
 	PT1 = 0,
 	PT2,
+	PT3,
 };
 
 
-// SLEEP¥â¡¼¥ÉÀßÄê
+// SLEEPãƒ¢ãƒ¼ãƒ‰è¨­å®š
 enum {
 	TYPE_SLEEP,
 	TYPE_WAKEUP
 };
 
-// ¥Á¥å¡¼¥Ê¥Ñ¥ï¡¼¥â¡¼¥ÉÀßÄê
+// ãƒãƒ¥ãƒ¼ãƒŠãƒ‘ãƒ¯ãƒ¼ãƒ¢ãƒ¼ãƒ‰è¨­å®š
 enum {
 	BIT_TUNER,
 	BIT_LNB_UP,
@@ -143,18 +146,18 @@ enum {
 	BIT_5A2
 };
 
-// LNB¥Ñ¥ï¡¼ÀßÄê
+// LNBãƒ‘ãƒ¯ãƒ¼è¨­å®š
 enum {
 	LNB_OFF, // LNB OFF
 	LNB_11V, // +11 V
 	LNB_15V // +15 V
 };
 
- // ÅÅ¸»¡¿¥Ï¡¼¥É¥¦¥§¥¢¥ê¥»¥Ã¥È
+ // é›»æºï¼ãƒãƒ¼ãƒ‰ã‚¦ã‚§ã‚¢ãƒªã‚»ãƒƒãƒˆ
 enum {
-	TUNER_POWER_OFF, // ¥ª¥Õ¡¿¥¤¥Í¡¼¥Ö¥ë
-	TUNER_POWER_ON_RESET_ENABLE, // ¥ª¥ó¡¿¥¤¥Í¡¼¥Ö¥ë
-	TUNER_POWER_ON_RESET_DISABLE // ¥ª¥ó¡¿¥Ç¥£¥»¡¼¥Ö¥ë
+	TUNER_POWER_OFF, // ã‚ªãƒ•ï¼ã‚¤ãƒãƒ¼ãƒ–ãƒ«
+	TUNER_POWER_ON_RESET_ENABLE, // ã‚ªãƒ³ï¼ã‚¤ãƒãƒ¼ãƒ–ãƒ«
+	TUNER_POWER_ON_RESET_DISABLE // ã‚ªãƒ³ï¼ãƒ‡ã‚£ã‚»ãƒ¼ãƒ–ãƒ«
 };
 
 
@@ -168,10 +171,10 @@ struct dmabuf {
 
 struct ptx_stream {
 
-	// |  1 | ¥Á¥å¡¼¥Ê¡¼ÈÖ¹æ0 ISDB-S |
-	// |  2 | ¥Á¥å¡¼¥Ê¡¼ÈÖ¹æ0 ISDB-T |
-	// |  3 | ¥Á¥å¡¼¥Ê¡¼ÈÖ¹æ1 ISDB-S |
-	// |  4 | ¥Á¥å¡¼¥Ê¡¼ÈÖ¹æ1 ISDB-T |
+	// |  1 | ãƒãƒ¥ãƒ¼ãƒŠãƒ¼ç•ªå·0 ISDB-S |
+	// |  2 | ãƒãƒ¥ãƒ¼ãƒŠãƒ¼ç•ªå·0 ISDB-T |
+	// |  3 | ãƒãƒ¥ãƒ¼ãƒŠãƒ¼ç•ªå·1 ISDB-S |
+	// |  4 | ãƒãƒ¥ãƒ¼ãƒŠãƒ¼ç•ªå·1 ISDB-T |
 	int id; // 1,2,3,4
 
 	int freq;			// frequencyno|(slot<<16)
@@ -179,14 +182,14 @@ struct ptx_stream {
 	int opened;
 	int started;
 
-	int drop;			// ¥Ñ¥±¥Ã¥È¥É¥í¥Ã¥×¿ô
-	int overflow;			// ¥ª¡¼¥Ğ¡¼¥Õ¥í¡¼¥¨¥é¡¼È¯À¸
-	int counetererr;		// Å¾Á÷¥«¥¦¥ó¥¿£±¥¨¥é¡¼
-	int transerr;			// Å¾Á÷¥¨¥é¡¼
+	int drop;			// ãƒ‘ã‚±ãƒƒãƒˆãƒ‰ãƒ­ãƒƒãƒ—æ•°
+	int overflow;			// ã‚ªãƒ¼ãƒãƒ¼ãƒ•ãƒ­ãƒ¼ã‚¨ãƒ©ãƒ¼ç™ºç”Ÿ
+	int counetererr;		// è»¢é€ã‚«ã‚¦ãƒ³ã‚¿ï¼‘ã‚¨ãƒ©ãƒ¼
+	int transerr;			// è»¢é€ã‚¨ãƒ©ãƒ¼
 
 
 	/* ringbuf */
-	uint8_t *buf;			// CHÊÌ¼õ¿®¥á¥â¥ê
+	uint8_t *buf;			// CHåˆ¥å—ä¿¡ãƒ¡ãƒ¢ãƒª
 
 	int wp;
 	int chunk_filled;
@@ -194,7 +197,7 @@ struct ptx_stream {
 	int rp;
 	int chunk_used;
 
-	struct mtx lock;		// CHÊÌmutex_lockÍÑ
+	struct mtx lock;		// CHåˆ¥mutex_lockç”¨
 	struct cv not_full;
 	struct cv not_empty;
 };
@@ -232,13 +235,22 @@ struct ptx_softc {
 
 	int i2c_state;
 	int i2c_progress;
+
+	/* pt3 */
+	bus_space_tag_t pt3_bt;
+	bus_space_handle_t pt3_bh;
+	struct resource *pt3_res_memory;
+	int pt3_rid_memory;
+	PT3_I2C *i2c;
+	PT3_TUNER  tuner[MAX_TUNER];
+	int pt3debug;
 };
 
-// I2C½ñ¤­¹ş¤ß¥Ç¡¼¥¿ÄêµÁ
+// I2Cæ›¸ãè¾¼ã¿ãƒ‡ãƒ¼ã‚¿å®šç¾©
 typedef	struct _WBLOCK {
-	uint8_t	addr;	// I2C¥Ç¥Ğ¥¤¥¹¥¢¥É¥ì¥¹
-	uint32_t count;	// Å¾Á÷¸Ä¿ô
-	uint8_t	value[16]; // ½ñ¤­¹ş¤ßÃÍ
+	uint8_t	addr;	// I2Cãƒ‡ãƒã‚¤ã‚¹ã‚¢ãƒ‰ãƒ¬ã‚¹
+	uint32_t count;	// è»¢é€å€‹æ•°
+	uint8_t	value[16]; // æ›¸ãè¾¼ã¿å€¤
 } WBLOCK;
 
 
@@ -249,72 +261,73 @@ typedef struct _MICRO_PACKET {
 } MICRO_PACKET;
 
 
-// ISDB-S¾õÂÖÄêµÁ
+// ISDB-SçŠ¶æ…‹å®šç¾©
 typedef struct _ISDB_S_CH_TABLE {
-	int channel;		// ÆşÎÏ¥Á¥ã¥ó¥Í¥ëÈÖ¹æ
-	int real_chno;		// ¼Âºİ¤Î¥Æ¡¼¥Ö¥ëÈÖ¹æ
-	int slotno;		// ¥¹¥í¥Ã¥ÈÈÖ¹æ
+	int channel;		// å…¥åŠ›ãƒãƒ£ãƒ³ãƒãƒ«ç•ªå·
+	int real_chno;		// å®Ÿéš›ã®ãƒ†ãƒ¼ãƒ–ãƒ«ç•ªå·
+	int slotno;		// ã‚¹ãƒ­ãƒƒãƒˆç•ªå·
 } ISDB_S_CH_TABLE;
 
-// ISDB-S¾õÂÖÄêµÁ
+// ISDB-SçŠ¶æ…‹å®šç¾©
 typedef	struct _ISDB_S_TS_ID {
 	uint16_t ts_id;		// TS-ID
 	uint16_t dmy;		// PAD
-	uint8_t	low_mode;	// Äã³¬ÁØ ¥â¡¼¥É
-	uint8_t	low_slot;	// Äã³¬ÁØ ¥¹¥í¥Ã¥È¿ô
-	uint8_t	high_mode;	// ¹â³¬ÁØ ¥â¡¼¥É
-	uint8_t	high_slot;	// ¹â³¬ÁØ ¥¹¥í¥Ã¥È¿ô
+	uint8_t	low_mode;	// ä½éšå±¤ ãƒ¢ãƒ¼ãƒ‰
+	uint8_t	low_slot;	// ä½éšå±¤ ã‚¹ãƒ­ãƒƒãƒˆæ•°
+	uint8_t	high_mode;	// é«˜éšå±¤ ãƒ¢ãƒ¼ãƒ‰
+	uint8_t	high_slot;	// é«˜éšå±¤ ã‚¹ãƒ­ãƒƒãƒˆæ•°
 } ISDB_S_TS_ID;
 
 typedef	struct _ISDB_S_TMCC {
-	ISDB_S_TS_ID ts_id[MAX_BS_TS_ID];	// ÁêÂĞTSÈÖ¹æn¤ËÂĞ¤¹¤ëTS ID¾ğÊó
+	ISDB_S_TS_ID ts_id[MAX_BS_TS_ID];	// ç›¸å¯¾TSç•ªå·nã«å¯¾ã™ã‚‹TS IDæƒ…å ±
 #if 0
-	uint32_t indicator;			// ÊÑ¹¹»Ø¼¨ (5¥Ó¥Ã¥È)
-	uint32_t emergency;			// µ¯Æ°À©¸æ¿®¹æ (1¥Ó¥Ã¥È)
-	uint32_t uplink;			// ¥¢¥Ã¥×¥ê¥ó¥¯À©¸æ¾ğÊó (4¥Ó¥Ã¥È)
-	uint32_t ext;				// ³ÈÄ¥¥Õ¥é¥° (1¥Ó¥Ã¥È)
-	uint32_t extdata[2];			// ³ÈÄ¥ÎÎ°è (61¥Ó¥Ã¥È)
+	uint32_t indicator;			// å¤‰æ›´æŒ‡ç¤º (5ãƒ“ãƒƒãƒˆ)
+	uint32_t emergency;			// èµ·å‹•åˆ¶å¾¡ä¿¡å· (1ãƒ“ãƒƒãƒˆ)
+	uint32_t uplink;			// ã‚¢ãƒƒãƒ—ãƒªãƒ³ã‚¯åˆ¶å¾¡æƒ…å ± (4ãƒ“ãƒƒãƒˆ)
+	uint32_t ext;				// æ‹¡å¼µãƒ•ãƒ©ã‚° (1ãƒ“ãƒƒãƒˆ)
+	uint32_t extdata[2];			// æ‹¡å¼µé ˜åŸŸ (61ãƒ“ãƒƒãƒˆ)
 #endif
 	uint32_t agc;				// AGC
-	uint32_t clockmargin;			// ¥¯¥í¥Ã¥¯¼şÇÈ¿ô¸íº¹
-	uint32_t carriermargin;			// ¥­¥ã¥ê¥¢¼şÇÈ¿ô¸íº¹
+	uint32_t clockmargin;			// ã‚¯ãƒ­ãƒƒã‚¯å‘¨æ³¢æ•°èª¤å·®
+	uint32_t carriermargin;			// ã‚­ãƒ£ãƒªã‚¢å‘¨æ³¢æ•°èª¤å·®
 } ISDB_S_TMCC;
 
-// ³¬ÁØ¾ğÊó
+// éšå±¤æƒ…å ±
 typedef	struct _ISDB_T_INFO {
-	uint32_t mode;				// ¥­¥ã¥ê¥¢ÊÑÄ´Êı¼° (3¥Ó¥Ã¥È)
-	uint32_t rate;				// ¾ö¹ş¤ßÉä¹æ²½Î¨ (3¥Ó¥Ã¥È)
-	uint32_t interleave;			// ¥¤¥ó¥¿¡¼¥ê¡¼¥ÖÄ¹ (3¥Ó¥Ã¥È)
-	uint32_t segment; 			// ¥»¥°¥á¥ó¥È¿ô (4¥Ó¥Ã¥È)
+	uint32_t mode;				// ã‚­ãƒ£ãƒªã‚¢å¤‰èª¿æ–¹å¼ (3ãƒ“ãƒƒãƒˆ)
+	uint32_t rate;				// ç•³è¾¼ã¿ç¬¦å·åŒ–ç‡ (3ãƒ“ãƒƒãƒˆ)
+	uint32_t interleave;			// ã‚¤ãƒ³ã‚¿ãƒ¼ãƒªãƒ¼ãƒ–é•· (3ãƒ“ãƒƒãƒˆ)
+	uint32_t segment; 			// ã‚»ã‚°ãƒ¡ãƒ³ãƒˆæ•° (4ãƒ“ãƒƒãƒˆ)
 } ISDB_T_INFO;
 
 typedef	struct _ISDB_T_TMCC {
 #if 0
-	uint32_t sysid;		// ¥·¥¹¥Æ¥à¼±ÊÌ (2¥Ó¥Ã¥È)
-	uint32_t indicator;	// ÅÁÁ÷¥Ñ¥é¥á¡¼¥¿ÀÚ¤êÂØ¤¨»ØÉ¸ (4¥Ó¥Ã¥È)
-	uint32_t emergency;	// ¶ÛµŞ·ÙÊóÊüÁ÷ÍÑµ¯Æ°¥Õ¥é¥° (1¥Ó¥Ã¥È)
+	uint32_t sysid;		// ã‚·ã‚¹ãƒ†ãƒ è­˜åˆ¥ (2ãƒ“ãƒƒãƒˆ)
+	uint32_t indicator;	// ä¼é€ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿åˆ‡ã‚Šæ›¿ãˆæŒ‡æ¨™ (4ãƒ“ãƒƒãƒˆ)
+	uint32_t emergency;	// ç·Šæ€¥è­¦å ±æ”¾é€ç”¨èµ·å‹•ãƒ•ãƒ©ã‚° (1ãƒ“ãƒƒãƒˆ)
 #endif
 	ISDB_T_INFO info[MAX_ISDB_T_INFO];
 #if 0
-					// ¥«¥ì¥ó¥È¾ğÊó
-	uint32_t partial;		// ÉôÊ¬¼õ¿®¥Õ¥é¥° (1¥Ó¥Ã¥È)
-	uint32_t Phase;			// Ï¢·ëÁ÷¿®°ÌÁêÊäÀµÎÌ (3¥Ó¥Ã¥È)
-	uint32_t Reserved;		// ¥ê¥¶¡¼¥Ö (12¥Ó¥Ã¥È)
+					// ã‚«ãƒ¬ãƒ³ãƒˆæƒ…å ±
+	uint32_t partial;		// éƒ¨åˆ†å—ä¿¡ãƒ•ãƒ©ã‚° (1ãƒ“ãƒƒãƒˆ)
+	uint32_t Phase;			// é€£çµé€ä¿¡ä½ç›¸è£œæ­£é‡ (3ãƒ“ãƒƒãƒˆ)
+	uint32_t Reserved;		// ãƒªã‚¶ãƒ¼ãƒ– (12ãƒ“ãƒƒãƒˆ)
 #endif
 	uint32_t cn[2];			// CN
 	uint32_t agc;			// AGC
-	uint32_t clockmargin ;		// ¥¯¥í¥Ã¥¯¼şÇÈ¿ô¸íº¹
-	uint32_t carriermargin ;	// ¥­¥ã¥ê¥¢¼şÇÈ¿ô¸íº¹
+	uint32_t clockmargin ;		// ã‚¯ãƒ­ãƒƒã‚¯å‘¨æ³¢æ•°èª¤å·®
+	uint32_t carriermargin ;	// ã‚­ãƒ£ãƒªã‚¢å‘¨æ³¢æ•°èª¤å·®
 } ISDB_T_TMCC;
 
 
 typedef struct _frequency {
-	int frequencyno;	// ¼şÇÈ¿ô¥Æ¡¼¥Ö¥ëÈÖ¹æ
-	int slot;		// ¥¹¥í¥Ã¥ÈÈÖ¹æ¡¿²Ã»»¤¹¤ë¼şÇÈ¿ô
+	int frequencyno;	// å‘¨æ³¢æ•°ãƒ†ãƒ¼ãƒ–ãƒ«ç•ªå·
+	int slot;		// ã‚¹ãƒ­ãƒƒãƒˆç•ªå·ï¼åŠ ç®—ã™ã‚‹å‘¨æ³¢æ•°
 } FREQUENCY;
 
 #define _MSTOTICK(t)	(hz * (t) / 1000)
 #define MSTOTICK(t)	((t) == 0 ? 0 : (_MSTOTICK(t) == 0 ? 1 : _MSTOTICK(t)))
 
 int ptx_pause(const char *wmesg, int timo);
+
 #endif

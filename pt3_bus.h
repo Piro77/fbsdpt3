@@ -18,7 +18,11 @@
 #ifndef		__PT3_BUS_H__
 #define		__PT3_BUS_H__
 
+#if defined(__FreeBSD__)
+#include "pt3_misc.h"
+#else
 #include <linux/mutex.h>
+#endif
 #include "pt3_pci.h"
 
 #define PT3_BUS_MAX_INST 4096

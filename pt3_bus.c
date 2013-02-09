@@ -15,6 +15,12 @@
 
  *******************************************************************************/
 
+#if defined(__FreeBSD__)
+
+#include "pt3_misc.h"
+
+#else
+
 #include "version.h"
 
 #include <linux/module.h>
@@ -33,6 +39,8 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/uaccess.h>
+
+#endif
 
 #include "pt3_com.h"
 #include "pt3_pci.h"

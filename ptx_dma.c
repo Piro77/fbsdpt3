@@ -61,7 +61,7 @@ ptx_dma_init(struct ptx_softc *scp)
 			if (error) {
 				return error; // need freed
 			}
-			// DMA¥Ç¡¼¥¿¥¨¥ê¥¢½é´ü²½
+			// DMAãƒ‡ãƒ¼ã‚¿ã‚¨ãƒªã‚¢åˆæœŸåŒ–
 			data = scp->databuf[rpos][dpos].va;
 			data[(DMA_PAGE_SIZE / sizeof(uint32_t)) - 2] = 0;
 

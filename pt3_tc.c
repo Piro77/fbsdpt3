@@ -15,6 +15,18 @@
 
  *******************************************************************************/
 
+#if defined(__FreeBSD__)
+
+#include "pt3_misc.h"
+#include "pt3_qm.h"
+#include "pt3_tc.h"
+#include "pt3_i2c.h"
+#include "pt3_bus.h"
+
+#include "ptx.h"
+
+#else
+
 #include "version.h"
 
 #include <linux/module.h>
@@ -37,6 +49,8 @@
 #include "pt3_com.h"
 #include "pt3_pci.h"
 #include "pt3_tc.h"
+
+#endif
 
 static __u32
 byten(const __u8 *data, __u32 n)

@@ -15,6 +15,12 @@
 
  *******************************************************************************/
 
+#if defined(__FreeBSD__)
+
+#include "pt3_misc.h"
+#include "ptx.h"
+
+#else
 #include "version.h"
 
 #include <linux/module.h>
@@ -34,6 +40,8 @@
 #include <asm/irq.h>
 #include <asm/uaccess.h>
 
+#endif
+
 #include "pt3_com.h"
 #include "pt3_pci.h"
 #include "pt3_i2c.h"
@@ -46,7 +54,13 @@ wait(PT3_I2C *i2c, __u32 *data)
 	__u32 val;
 	
 	while (1) {
+#if defined(__FreeBSD__)
+		struct ptx_softc *scp;
+		scp = i2c->scp;
+		val = bus_space_read_4(scp->bt, scp->bh, REGS_I2C_R);
+#else
 		val = readl(i2c->bar[0] + REGS_I2C_R);
+#endif
 		if (!BIT_SHIFT_MASK(val, 0, 1))
 			break;
 		schedule_timeout_interruptible(msecs_to_jiffies(1));	
@@ -66,7 +80,13 @@ run_code(PT3_I2C *i2c, __u32 start_addr, __u32 *ack)
 	if (unlikely(start_addr >= (1 << 13)))
 		PT3_PRINTK(0, KERN_DEBUG, "start address is over.\n");
 	
+#if defined(__FreeBSD__)
+	struct ptx_softc *scp;
+	scp = i2c->scp;
+	bus_space_write_4(scp->bt,scp->bh, REGS_I2C_W, 1 << 16 | start_addr);
+#else
 	writel(1 << 16 | start_addr, i2c->bar[0] + REGS_I2C_W);
+#endif
 #if 0
 	PT3_PRINTK(7, KERN_DEBUG, "run i2c start_addr=0x%x\n", start_addr);
 #endif
@@ -85,12 +105,22 @@ run_code(PT3_I2C *i2c, __u32 start_addr, __u32 *ack)
 void
 pt3_i2c_copy(PT3_I2C *i2c, PT3_BUS *bus)
 {
+#if defined(__FreeBSD__)
+	uint8_t	dst;
+#else
 	void __iomem *dst;
+#endif
 	__u8 *src;
 	__u32 i;
 
 	src = &bus->insts[0];
+#if defined(__FreeBSD__)
+	struct ptx_softc *scp;
+	scp = i2c->scp;
+	dst = DATA_OFFSET + (bus->inst_addr / 2);
+#else
 	dst = i2c->bar[1] + DATA_OFFSET + (bus->inst_addr / 2);
+#endif
 
 #if 0
 	PT3_PRINTK(7, KERN_DEBUG, "PT3 : i2c_copy. base=%p dst=%p src=%p size=%d\n",
@@ -99,7 +129,11 @@ pt3_i2c_copy(PT3_I2C *i2c, PT3_BUS *bus)
 
 #if 1
 	for (i = 0; i < bus->inst_pos; i++) {
+#if defined(__FreeBSD__)
+		bus_space_write_1(scp->pt3_bt,scp->pt3_bh, dst + i , src[i]);
+#else
 		writeb(src[i], dst + i);
+#endif
 	}
 #else
 	memcpy(dst, src, bus->inst_pos);
@@ -112,7 +146,13 @@ pt3_i2c_run(PT3_I2C *i2c, PT3_BUS *bus, __u32 *ack, int copy)
 	STATUS status;
 	__u32 rsize, i;
 
+#if defined(__FreeBSD__)
+	struct ptx_softc *scp;
+	scp = i2c->scp;
+	mtx_lock(&i2c->lock);
+#else
 	mutex_lock(&i2c->lock);
+#endif
 
 	if (copy) {
 		pt3_i2c_copy(i2c, bus);
@@ -123,7 +163,12 @@ pt3_i2c_run(PT3_I2C *i2c, PT3_BUS *bus, __u32 *ack, int copy)
 	rsize = bus->read_addr;
 
 	for (i = 0; i < rsize; i++) {
+#if defined(__FreeBSD__)
+		pt3_bus_push_read_data(bus, bus_space_read_1(scp->pt3_bt,scp->pt3_bh, DATA_OFFSET +
+i));
+#else
 		pt3_bus_push_read_data(bus, readb(i2c->bar[1] + DATA_OFFSET + i));
+#endif
 	}
 #if 0
 	if (rsize > 0) {
@@ -135,7 +180,11 @@ pt3_i2c_run(PT3_I2C *i2c, PT3_BUS *bus, __u32 *ack, int copy)
 	}
 #endif
 
+#if defined(__FreeBSD__)
+	mtx_unlock(&i2c->lock);
+#else
 	mutex_unlock(&i2c->lock);
+#endif
 
 	return status;
 }
@@ -145,7 +194,13 @@ pt3_i2c_is_clean(PT3_I2C *i2c)
 {
 	__u32 val;
 
+#if defined(__FreeBSD__)
+	struct ptx_softc *scp;
+	scp = i2c->scp;
+	val = bus_space_read_4(scp->bt,scp->bh,REGS_I2C_R);
+#else
 	val = readl(i2c->bar[0] + REGS_I2C_R);
+#endif
 
 	return BIT_SHIFT_MASK(val, 3, 1);
 }
@@ -153,9 +208,37 @@ pt3_i2c_is_clean(PT3_I2C *i2c)
 void
 pt3_i2c_reset(PT3_I2C *i2c)
 {
+#if defined(__FreeBSD__)
+	struct ptx_softc *scp;
+	scp = i2c->scp;
+	bus_space_write_4(scp->bt,scp->bh, REGS_I2C_W , 1<<17);
+#else
 	writel(1 << 17, i2c->bar[0] + REGS_I2C_W);
+#endif
 }
 
+#if defined(__FreeBSD__)
+PT3_I2C *
+create_pt3_i2c(void *p)
+{
+	PT3_I2C *i2c;
+	struct ptx_softc *scp;
+	scp = (struct ptx_softc *)p;
+	
+	i2c = pt3_vzalloc(sizeof(PT3_I2C));
+	if (i2c == NULL)
+		return NULL;
+	i2c->scp = scp;
+	mtx_init(&i2c->lock, "pt3i2c", NULL, MTX_DEF);
+
+	return i2c;
+}
+void
+free_pt3_i2c(PT3_I2C *i2c)
+{
+	vfree(i2c);
+}
+#else
 PT3_I2C *
 create_pt3_i2c(__u8 __iomem *bar[])
 {
@@ -181,3 +264,4 @@ free_pt3_i2c(PT3_I2C *i2c)
 {
 	vfree(i2c);
 }
+#endif

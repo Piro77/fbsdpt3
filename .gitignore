@@ -15,3 +15,13 @@
 *.exe
 *.out
 *.app
+
+@
+bus_if.h
+device_if.h
+export_syms
+machine
+pci_if.h
+ptx.kld
+ptx.ko
+

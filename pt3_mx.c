@@ -15,6 +15,13 @@
 
  *******************************************************************************/
 
+#if defined(__FreeBSD__)
+
+#include "pt3_misc.h"
+#include "ptx.h"
+
+#else
+
 #include "version.h"
 
 #include <linux/module.h>
@@ -34,6 +41,8 @@
 #include <asm/io.h>
 #include <asm/irq.h>
 #include <asm/uaccess.h>
+
+#endif
 
 #include "pt3_com.h"
 #include "pt3_pci.h"
@@ -414,7 +423,7 @@ pt3_mx_set_frequency(PT3_MX *mx, __u32 channel, __s32 offset)
 
 		schedule_timeout_interruptible(msecs_to_jiffies(1));	
 	}
-#if 0
+#if 1
 	PT3_PRINTK(7, KERN_DEBUG, "mx_get_locked1 %d locked2 %d\n", locked1, locked2);
 #endif
 	if (!(locked1 && locked2))

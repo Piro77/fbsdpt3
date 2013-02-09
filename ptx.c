@@ -17,12 +17,16 @@ __FBSDID("$FreeBSD$");
 #include <dev/pci/pcireg.h>
 #include <dev/pci/pcivar.h>
 
+#include "pt3_misc.h"
+
 #include "ptx.h"
 #include "ptx_iic.h"
 #include "ptx_tuner.h"
 #include "ptx_dma.h"
 #include "ptx_proc.h"
 #include "ptx_sysctl.h"
+
+
 
 
 static devclass_t ptx_devclass;
@@ -58,6 +62,8 @@ MODULE_VERSION(ptx, 1);
 #define VENDOR_XILINX 0x10ee
 #define PCI_PT1_ID 0x211a
 #define PCI_PT2_ID 0x222a
+#define VENDOR_ALTERA 0x1172
+#define PCI_PT3_ID 0x4c15
 
 /*
  * device interface
@@ -74,6 +80,7 @@ ptx_probe(device_t device)
 	static const struct _pcsid pci_ids[] = {
 		{ (PCI_PT1_ID << 16)|VENDOR_XILINX, "EARTHSOFT PT1" },
 		{ (PCI_PT2_ID << 16)|VENDOR_XILINX, "EARTHSOFT PT2" },
+		{ (PCI_PT3_ID << 16)|VENDOR_ALTERA, "EARTHSOFT PT3" },
 
 		{ 0x00000000, NULL }
 	};
@@ -124,31 +131,40 @@ ptx_attach(device_t device)
 	case PCI_PT2_ID:
 		scp->cardtype = PT2;
 		break;
+	case PCI_PT3_ID:
+		scp->cardtype = PT3;
+		break;
 	default:
 		device_printf(device, "unknown device (0x%04x)\n",
 		    pci_get_device(device));
 		return ENXIO;
 	}
 
-	// PCI¥¢¥É¥ì¥¹¤ò¥Ş¥Ã¥×¤¹¤ë
+	// PCIã‚¢ãƒ‰ãƒ¬ã‚¹ã‚’ãƒãƒƒãƒ—ã™ã‚‹
 	scp->rid_memory = PCIR_BARS;
 	scp->res_memory = bus_alloc_resource_any(device, SYS_RES_MEMORY,
 	    &scp->rid_memory, RF_ACTIVE);
+	device_printf(device, "bars %d %d %d\n",PCIR_BARS,PCIR_BAR(0),PCIR_BAR(1));
 	if (! scp->res_memory) {
 		device_printf(device, "could not map memory\n");
 		return ENXIO;
 	}
-
 	scp->bt = rman_get_bustag(scp->res_memory);
 	scp->bh = rman_get_bushandle(scp->res_memory);
 
-	// ½é´ü²½½èÍı
+if (scp->cardtype == PT3) {
+if (pt3_init(scp)) {
+		device_printf(device, "Error pt3_init\n");
+		goto out_err;
+}
+}
+else {
 	if (xc3s_init(scp)) {
 		device_printf(device, "Error xc3s_init\n");
 		goto out_err;
 	}
 
-	// ¥Á¥å¡¼¥Ê¥ê¥»¥Ã¥È
+	// ãƒãƒ¥ãƒ¼ãƒŠãƒªã‚»ãƒƒãƒˆ
 	scp->lnb = 0;
 
 	settuner_reset(scp, LNB_OFF, TUNER_POWER_ON_RESET_ENABLE);
@@ -161,15 +177,15 @@ ptx_attach(device_t device)
 	scp->i2c_state = STATE_STOP;
 	scp->i2c_progress = 0;
 
-	// Tuner/Stream ½é´ü²½½èÍı
+	// Tuner/Stream åˆæœŸåŒ–å‡¦ç†
 	for (tuner = 0; tuner < 2; ++tuner) {
 		if (ptx_tuner_init(scp, tuner))
 			goto out_err;
 
-		// |  1 | ¥Á¥å¡¼¥Ê¡¼ÈÖ¹æ0 ISDB-S |
-		// |  2 | ¥Á¥å¡¼¥Ê¡¼ÈÖ¹æ0 ISDB-T |
-		// |  3 | ¥Á¥å¡¼¥Ê¡¼ÈÖ¹æ1 ISDB-S |
-		// |  4 | ¥Á¥å¡¼¥Ê¡¼ÈÖ¹æ1 ISDB-T |
+		// |  1 | ãƒãƒ¥ãƒ¼ãƒŠãƒ¼ç•ªå·0 ISDB-S |
+		// |  2 | ãƒãƒ¥ãƒ¼ãƒŠãƒ¼ç•ªå·0 ISDB-T |
+		// |  3 | ãƒãƒ¥ãƒ¼ãƒŠãƒ¼ç•ªå·1 ISDB-S |
+		// |  4 | ãƒãƒ¥ãƒ¼ãƒŠãƒ¼ç•ªå·1 ISDB-T |
 		for (i = 0; i < 2; ++i) {
 			// 0=ISDB-S 1=ISDB-T
 			struct ptx_stream *s = &scp->stream[tuner*2+i];
@@ -225,6 +241,7 @@ ptx_attach(device_t device)
 	if (ptx_proc_start(scp)) {
 		goto out_err;
 	}
+}
 
 	return 0;
 
@@ -241,11 +258,28 @@ ptx_detach (device_t device)
 	uint32_t val;
 	int lp;
 
+	if (scp->cardtype == PT3) {
+
+	if (scp->res_memory) {
+		bus_release_resource(device, SYS_RES_MEMORY,
+			scp->rid_memory, scp->res_memory);
+		scp->res_memory = 0;
+	}
+	if (scp->pt3_res_memory) {
+		bus_release_resource(device, SYS_RES_MEMORY,
+			scp->pt3_rid_memory, scp->pt3_res_memory);
+		scp->pt3_res_memory = 0;
+	}
+
+
+		return 0;
+	}
+
 	if (scp->ptxdaemon) {
 		ptx_proc_stop(scp);
 	}
 
-	// DMA½ªÎ»
+	// DMAçµ‚äº†
 	if (scp->bh) {
 		bus_space_write_4(scp->bt, scp->bh, 0x0, 0x08080000);
 		for (lp = 0; lp < 10; lp++){

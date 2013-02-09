@@ -15,6 +15,8 @@
 
  *******************************************************************************/
 
+#if defined(linux)||defined(__linux)||defined(__linux__)
+
 #include "version.h"
 
 #include <linux/module.h>
@@ -40,6 +42,19 @@
 #include "pt3_qm.h"
 
 #define INIT_DUMMY_RESET 0x0c
+
+#endif
+
+#if defined(__FreeBSD__)
+
+#include "pt3_misc.h"
+#include "pt3_qm.h"
+#include "pt3_tc.h"
+#include "pt3_bus.h"
+
+#include "ptx.h"
+
+#endif
 
 /* TUNER_S */
 void

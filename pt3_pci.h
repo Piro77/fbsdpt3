@@ -18,6 +18,23 @@
 #ifndef		__PT3_PCI_H__
 #define		__PT3_PCI_H__
 
+#if defined(__FreeBSD__)
+
+#define KERN_ERR 1
+#define PT3_PRINTK(verbose, level, fmt, args...)    {pt3_printf(verbose,fmt, ##args);}
+extern int
+pt3_init(void *);
+void
+pt3_sysctl_init(void *);
+struct cdev* pt3_make_tuner(int , int, int);
+void pt3_printf(int, const char *, ...);
+
+
+
+#define PT3_DEVICE struct ptx_softc
+
+#else
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,37)
 void * pt3_vzalloc(unsigned long size);
 #else
@@ -26,6 +43,7 @@ void * pt3_vzalloc(unsigned long size);
 
 extern int debug;
 #define PT3_PRINTK(verbose, level, fmt, args...)	{if(verbose <= debug)printk(level "PT3: " fmt, ##args);}
+#endif
 
 #define REGS_VERSION	0x00	/*	R		Version */
 #define REGS_BUS		0x04	/*	R		Bus */

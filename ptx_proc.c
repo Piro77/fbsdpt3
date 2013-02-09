@@ -62,7 +62,7 @@ ptx_daemon(void* data)
 
 			dataptr = scp->databuf[scp->ring_pos][scp->data_pos].va;
 
-			// ¥Ç¡¼¥¿¤¢¤ê¡©
+			// ãƒ‡ãƒ¼ã‚¿ã‚ã‚Šï¼Ÿ
 			if (dataptr[(DMA_PAGE_SIZE / sizeof(uint32_t)) - 2] == 0) {
 				break;
 			}
@@ -76,7 +76,7 @@ ptx_daemon(void* data)
 			if (scp->data_pos >= DMA_BUFFER_PAGE_COUNT) {
 				scp->data_pos = 0;
 				scp->ring_pos += 1;
-				// DMA¥ê¥ó¥°¤¬ÊÑ¤ï¤Ã¤¿¾ì¹ç¤Ï¥¤¥ó¥¯¥ê¥á¥ó¥È
+				// DMAãƒªãƒ³ã‚°ãŒå¤‰ã‚ã£ãŸå ´åˆã¯ã‚¤ãƒ³ã‚¯ãƒªãƒ¡ãƒ³ãƒˆ
 				bus_space_write_4(scp->bt, scp->bh, 0x0, 0x00000020);
 				if (scp->ring_pos >= DMA_VIRTUAL_COUNTXSIZE) {
 					scp->ring_pos = 0;
@@ -120,7 +120,7 @@ read_dmabuf(struct ptx_softc *scp, uint32_t *dataptr)
 		st    = (micro.packet.head >> 1) & 0x1;
 		er    = (micro.packet.head >> 0) & 0x1;
 
-		//¥Á¥ã¥Í¥ë¾ğÊóÉÔÀµ
+		//ãƒãƒ£ãƒãƒ«æƒ…å ±ä¸æ­£
 		if (id > MAX_STREAM || id == 0) {
 			device_printf(scp->device, "DMA Channel Number Error(%d)\n", id);
 			continue;
@@ -128,7 +128,7 @@ read_dmabuf(struct ptx_softc *scp, uint32_t *dataptr)
 
 		s = &scp->stream[id - 1];
 
-		//  ¥¨¥é¡¼¥Á¥§¥Ã¥¯
+		//  ã‚¨ãƒ©ãƒ¼ãƒã‚§ãƒƒã‚¯
 		if (er) {
 			device_printf(scp->device, "stream %d micropacket error\n", id);
 
@@ -143,7 +143,7 @@ read_dmabuf(struct ptx_softc *scp, uint32_t *dataptr)
 				s->transerr += 1;
 			}
 #if 1
-			// ½é´ü²½¤·¤ÆÀèÆ¬¤«¤é
+			// åˆæœŸåŒ–ã—ã¦å…ˆé ­ã‹ã‚‰
 			reset_dma(scp);
 			scp->ring_pos = scp->data_pos = 0;
 			break;
@@ -152,23 +152,23 @@ read_dmabuf(struct ptx_softc *scp, uint32_t *dataptr)
 #endif
 		}
 
-		// Ì¤»ÈÍÑ¥Á¥ã¥Í¥ë¤Ï¼Î¤Æ¤ë
+		// æœªä½¿ç”¨ãƒãƒ£ãƒãƒ«ã¯æ¨ã¦ã‚‹
 		if (s->opened == FALSE) {
 			continue;
 		}
 
-		// ÀèÆ¬¤Ç¡¢°ì»ş¥Ğ¥Ã¥Õ¥¡¤Î»Ä¤ê¤Ï¼Î¤Æ¤ë
+		// å…ˆé ­ã§ã€ä¸€æ™‚ãƒãƒƒãƒ•ã‚¡ã®æ®‹ã‚Šã¯æ¨ã¦ã‚‹
 		if (st && (s->chunk_filled % PACKET_SIZE != 0)) {
 			int mod = s->chunk_filled % PACKET_SIZE;
 			s->chunk_filled -= mod;
 		}
 
 		if (s->chunk_filled >= DATA_CHUNK_SIZE) {
-			// ¼¡¤Î½ñ¤­¹ş¤ßÀè¤ò³ÎÊİ
+			// æ¬¡ã®æ›¸ãè¾¼ã¿å…ˆã‚’ç¢ºä¿
 
 			mtx_lock(&s->lock);
 			if ( ((s->wp + 1) % DATA_CHUNK_NUM) == s->rp ) {
-				// ÂĞ¾İ¥Á¥ã¥ó¥Í¥ë¤Î¥Ğ¥Ã¥Õ¥¡¤¬¤¢¤Õ¤ì¤¿¾ì¹ç
+				// å¯¾è±¡ãƒãƒ£ãƒ³ãƒãƒ«ã®ãƒãƒƒãƒ•ã‚¡ãŒã‚ãµã‚ŒãŸå ´åˆ
 				cv_timedwait(&s->not_full, &s->lock, MSTOTICK(500));
 			}
 			if ( ((s->wp + 1) % DATA_CHUNK_NUM) == s->rp ) {
@@ -186,7 +186,7 @@ read_dmabuf(struct ptx_softc *scp, uint32_t *dataptr)
 			s->chunk_filled = 0;
 		}
 
-		// ¥Ç¡¼¥¿¥³¥Ô¡¼
+		// ãƒ‡ãƒ¼ã‚¿ã‚³ãƒ”ãƒ¼
 		KASSERT(s->chunk_filled >= 0, "negative chunk_filled?");
 		KASSERT(s->chunk_filled < DATA_CHUNK_SIZE, "chunk_filled overflow");
 		KASSERT(s->wp >= 0, "negative wp?");
@@ -199,7 +199,7 @@ read_dmabuf(struct ptx_softc *scp, uint32_t *dataptr)
 			s->buf[s->wp * DATA_CHUNK_SIZE + s->chunk_filled] = micro.packet.data[0];
 			s->chunk_filled++;
 		} else {
-			// 189byteÌÜ¤Ïinformation
+			// 189byteç›®ã¯information
 //printf("ptx: proc stream %d info=%02x\n", s->id, micro.packet.data[0]);
 		}
 	}
@@ -214,7 +214,7 @@ reset_dma(struct ptx_softc *scp)
 	uint32_t addr32;
 	uint32_t *dataptr;
 
-	// ¥Ç¡¼¥¿½é´ü²½
+	// ãƒ‡ãƒ¼ã‚¿åˆæœŸåŒ–
 	for (rpos = 0; rpos < DMA_VIRTUAL_COUNTXSIZE; ++rpos) {
 		for (dpos = 0; dpos < DMA_BUFFER_PAGE_COUNT; ++dpos) {
 			dataptr = scp->databuf[rpos][dpos].va;
@@ -222,9 +222,9 @@ reset_dma(struct ptx_softc *scp)
 		}
 	}
 
-	// Å¾Á÷¥«¥¦¥ó¥¿¤ò¥ê¥»¥Ã¥È
+	// è»¢é€ã‚«ã‚¦ãƒ³ã‚¿ã‚’ãƒªã‚»ãƒƒãƒˆ
 	bus_space_write_4(scp->bt, scp->bh, 0x00, 0x00000010);
-	// Å¾Á÷¥«¥¦¥ó¥¿¤ò¥¤¥ó¥¯¥ê¥á¥ó¥È
+	// è»¢é€ã‚«ã‚¦ãƒ³ã‚¿ã‚’ã‚¤ãƒ³ã‚¯ãƒªãƒ¡ãƒ³ãƒˆ
 	for (rpos = 0; rpos < DMA_VIRTUAL_COUNTXSIZE; ++rpos) {
 		bus_space_write_4(scp->bt, scp->bh, 0x00, 0x00000020);
 	}
@@ -232,8 +232,8 @@ reset_dma(struct ptx_softc *scp)
 	addr = (uintptr_t) scp->ringbuf[0].pa;
 	addr >>= 12;
 	addr32 = addr & 0x7fffffff;
-	// DMA¥Ğ¥Ã¥Õ¥¡ÀßÄê
+	// DMAãƒãƒƒãƒ•ã‚¡è¨­å®š
 	bus_space_write_4(scp->bt, scp->bh, DMA_ADDR, addr32);
-	// DMA³«»Ï
+	// DMAé–‹å§‹
 	bus_space_write_4(scp->bt, scp->bh, 0x00, 0x0c000040);
 }

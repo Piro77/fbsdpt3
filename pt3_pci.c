@@ -15,6 +15,31 @@
 
  *******************************************************************************/
 
+#if defined(__FreeBSD__)
+#include <sys/cdefs.h>
+#include <sys/param.h>
+#include <sys/systm.h>
+#include <sys/conf.h>
+#include <sys/kernel.h>
+#include <sys/malloc.h>
+#include <sys/module.h>
+#include <sys/sysctl.h>
+#include <sys/bus.h>
+#include <sys/condvar.h>
+
+#include <machine/bus.h>
+#include <machine/resource.h>
+#include <machine/stdarg.h>
+
+#include <sys/rman.h>
+
+#include <dev/pci/pcireg.h>
+#include <dev/pci/pcivar.h>
+
+
+#include "pt3_misc.h"
+#else
+
 #define DRV_NAME "PT3-pci"
 #include "version.h"
 
@@ -113,6 +138,7 @@ static	DEFINE_MUTEX(pt3_biglock);
 
 #define		MAX_PCI_DEVICE		128		// 最大64枚
 
+
 typedef struct _PT3_VERSION {
 	__u8		ptn;
 	__u8 		regs;
@@ -159,11 +185,13 @@ struct _PT3_CHANNEL {
 	PT3_I2C			*i2c;
 	PT3_DMA			*dma;
 };
+#endif
 
 static int real_channel[MAX_CHANNEL] = {0, 1, 2, 3};
 static int channel_type[MAX_CHANNEL] = {PT3_ISDB_S, PT3_ISDB_S,
 										PT3_ISDB_T, PT3_ISDB_T};
 
+#ifndef __FreeBSD__
 static	PT3_DEVICE	*device[MAX_PCI_DEVICE];
 static struct class	*pt3video_class;
 
@@ -197,6 +225,7 @@ check_fpga_version(PT3_DEVICE *dev_conf)
 
 	return 0;
 }
+#endif
 
 #if 0
 static int
@@ -292,7 +321,12 @@ set_lnb(PT3_DEVICE *dev_conf, int lnb)
 {
 	if (unlikely(lnb < 0 || 2 < lnb))
 		return STATUS_INVALID_PARAM_ERROR;
+#if defined(__FreeBSD__)
+	dev_conf->lnb = lnb;
+	bus_space_write_4(dev_conf->bt, dev_conf->bh, REGS_SYSTEM_W, LNB_SETTINGS[lnb]);
+#else
 	writel(LNB_SETTINGS[lnb], dev_conf->hw_addr[0] + REGS_SYSTEM_W);
+#endif
 	return STATUS_OK;
 }
 
@@ -621,13 +655,377 @@ SetChannel(PT3_CHANNEL *channel, FREQUENCY *freq)
 		// wait for fill buffer
 		schedule_timeout_interruptible(msecs_to_jiffies(200));
 		// reset_error_count
-		pt3_dma_set_test_mode(channel->dma, 0, 0, 0, 1);
+		// XXX pt3_dma_set_test_mode(channel->dma, 0, 0, 0, 1);
 		return status;
 		break;
 	}
 
 	return STATUS_INVALID_PARAM_ERROR;
 }
+
+#if defined(__FreeBSD__)
+
+static d_open_t pt3open;
+static d_close_t pt3close;
+static d_read_t pt3read;
+
+static struct cdevsw ptx_cdevsw = {
+        .d_version =    D_VERSION,
+        .d_open =       pt3open,
+        .d_close =      pt3close,
+        .d_read =       pt3read,
+//      .d_ioctl =      ptxioctl,
+        .d_name =       "ptx_tuner",
+};
+
+struct cdev*
+pt3_make_tuner(int unit, int tuner, int chno)
+{
+        static const char* fmt[] = {
+                "ptx%d.s%d",
+                "ptx%d.t%d"};
+
+	if (chno == PT3_ISDB_S) chno = 0;
+	else chno = 1;
+        return make_dev(&ptx_cdevsw, 0,
+            UID_ROOT, GID_OPERATOR, 0666,
+            fmt[chno], unit, tuner);
+}
+static device_t pt3dev;
+void
+pt3_printf(int verbose, const char *fmt, ...)
+{
+	struct ptx_softc *scp;
+	scp = device_get_softc(pt3dev);
+        va_list ap;
+	if (scp && verbose <= scp->pt3debug) {
+        	printf("%s: ", device_get_nameunit(pt3dev));
+        	va_start(ap, fmt);
+        	vprintf(fmt, ap);
+        	va_end(ap);
+	}
+}
+
+static int pt3read(struct cdev *dev, struct uio *uio, int ioflag)
+{
+        //struct ptx_softc *scp = (struct ptx_softc *) dev->si_drv1;
+        //PT3_CHANNEL *channel = (PT3_CHANNEL *) dev->si_drv2;
+
+	return -1;
+}
+static int
+pt3open(struct cdev *dev, int oflags, int devtype, struct thread *td)
+{
+        //struct ptx_softc *scp = (struct ptx_softc *) dev->si_drv1;
+        //PT3_CHANNEL *channel = (PT3_CHANNEL *) dev->si_drv2;
+
+
+        return EBUSY;
+}
+static int
+pt3close(struct cdev *dev, int fflag, int devtype, struct thread *td)
+{
+        //struct ptx_softc *scp = (struct ptx_softc *) dev->si_drv1;
+        //PT3_CHANNEL *channel = (PT3_CHANNEL *) dev->si_drv2;
+
+	return 0;
+}
+
+
+
+int pt3_init(void *p)
+{
+struct ptx_softc *scp;
+int i,error,lp,rc;
+device_t device;
+scp = p;
+pt3dev = device = scp->device;
+
+PT3_I2C	*i2c;
+PT3_TUNER *tuner;
+PT3_CHANNEL *channel;
+uint32_t command;
+
+	scp->pt3_rid_memory = PCIR_BAR(2); /* PCIR_BAR(2)でいいのか?? */
+	scp->pt3_res_memory = bus_alloc_resource_any(device, SYS_RES_MEMORY,
+	    &scp->pt3_rid_memory, RF_ACTIVE);
+	if (! scp->pt3_res_memory) {
+		device_printf(device, "could not map memory\n");
+		return ENXIO;
+	}
+	scp->pt3_bt = rman_get_bustag(scp->pt3_res_memory);
+	scp->pt3_bh = rman_get_bushandle(scp->pt3_res_memory);
+
+
+	// 初期化処理
+	command = bus_space_read_4(scp->bt, scp->bh, REGS_VERSION);
+#if 0
+	device_printf(device, "pt3 ptn  %d\n",((command >> 24) & 0xFF));
+	device_printf(device, "pt3 reg  %d\n",((command >> 16) & 0xFF));
+	device_printf(device, "pt3 fpga %d\n",((command >> 8) & 0xFF));
+#endif
+	//Check FPGA Version
+	if ((((command >> 8) & 0xFF)) != 0x04) {
+		device_printf(device, "this FPGA version is not supported version=0x%x\n",((command >> 8) & 0xFF));
+		return ENXIO;
+	}
+
+	command = bus_space_read_4(scp->bt, scp->bh, REGS_SYSTEM_R);
+#if 0
+	device_printf(device, "pt3 can_transport_ts  %d\n",((command >> 5) & 0x01));
+	device_printf(device, "pt3 dma_descriptor_page_size  %d\n",(command & 0x1F));
+#endif
+
+	i2c = create_pt3_i2c(scp);
+	scp->i2c = i2c;
+
+	set_lnb(scp, 0);
+
+        for (i = 0; i < MAX_TUNER; i++) {
+                uint8_t tc_addr, tuner_addr;
+                uint32_t pin;
+
+                tuner = &scp->tuner[i];
+                tuner->tuner_no = i;
+                pin = 0;
+                tc_addr = pt3_tc_address(pin, PT3_ISDB_S, i);
+                tuner_addr = pt3_qm_address(i);
+		device_printf(device, "pt3 tuner s%d tc %x tuner %x \n",i,tc_addr,tuner_addr);
+
+                tuner->tc_s = create_pt3_tc(i2c, tc_addr, tuner_addr);
+                tuner->qm   = create_pt3_qm(i2c, tuner->tc_s);
+
+                tc_addr = pt3_tc_address(pin, PT3_ISDB_T, i);
+                tuner_addr = pt3_mx_address(i);
+		device_printf(device, "pt3 tuner t%d tc %x tuner %x \n",i,tc_addr,tuner_addr);
+
+                tuner->tc_t = create_pt3_tc(i2c, tc_addr, tuner_addr);
+                tuner->mx   = create_pt3_mx(i2c, tuner->tc_t);
+        }
+	rc = init_all_tuner(p);
+	if (rc) {
+		PT3_PRINTK(0, KERN_ERR, "fail init_all_tuner. 0x%x\n", rc);
+		goto out_err_i2c;
+	}
+	device_printf(device, "pt3 init_all_tuner complete\n");
+
+	/*
+	 * Allocate a DMA tag for the parent bus.
+	 */
+	error = bus_dma_tag_create(NULL,
+	    4, 0, // alignment=4byte, boundary=norestriction
+	    BUS_SPACE_MAXADDR_32BIT, BUS_SPACE_MAXADDR,
+	    NULL, NULL, // no filtfunc/arg
+	    DMA_PAGE_SIZE, 1, DMA_PAGE_SIZE, // maxsize, 1segs, segsize
+	    0,
+	    NULL, NULL, // no lockfunc/arg
+	    &scp->dmat);
+	if (error) {
+		device_printf(device, "could not create bus DMA tag(%d)\n", error);
+		//goto out_err;
+	}
+
+
+        for (lp = 0; lp < MAX_CHANNEL; lp++) {
+                channel = kzalloc(sizeof(PT3_CHANNEL), GFP_KERNEL);
+                if (channel == NULL) {
+                        PT3_PRINTK(0, KERN_ERR, "out of memory !\n");
+                        //goto out_err_dma;
+                }
+#if 0
+                channel->dma = create_pt3_dma(scp, i2c, real_channel[lp]);
+                if (channel->dma == NULL) {
+                        PT3_PRINTK(0, KERN_ERR, "fail create dma.\n");
+                        kfree(channel);
+                        //goto out_err_dma;
+                }
+#endif
+		mtx_init(&channel->lock, "pt3channel", NULL, MTX_DEF);
+                channel->tuner = &scp->tuner[real_channel[lp] & 1];
+                channel->type = channel_type[lp];
+                channel->i2c = i2c;
+
+#if 0
+                cv_init(&channel->not_full, "ptxful");
+                cv_init(&channel->not_empty, "ptxemp");
+#endif
+
+                scp->dev[lp] = pt3_make_tuner(scp->unit, real_channel[lp] & 1, channel_type[lp]);
+                scp->dev[lp]->si_drv1 = scp;
+                scp->dev[lp]->si_drv2 = channel;
+
+	}	
+	pt3_sysctl_init(scp);
+	device_printf(device, "PT3 init complete\n");
+ 
+return 0;
+out_err_i2c:
+        for (lp = 0; lp < MAX_TUNER; lp++) {
+                tuner = &scp->tuner[lp];
+                free_pt3_tc(tuner->tc_s);
+                free_pt3_qm(tuner->qm);
+                free_pt3_tc(tuner->tc_t);
+                free_pt3_mx(tuner->mx);
+        }
+        free_pt3_i2c(scp->i2c);
+return 1;
+}
+
+static int
+sysctl_pt3debug(SYSCTL_HANDLER_ARGS);
+static int
+sysctl_lnb(SYSCTL_HANDLER_ARGS);
+static int
+sysctl_freq(SYSCTL_HANDLER_ARGS);
+static int
+sysctl_signal(SYSCTL_HANDLER_ARGS);
+
+void
+pt3_sysctl_init(void *p)
+{
+	struct ptx_softc *scp;
+	device_t	device;
+	struct sysctl_ctx_list *scl;
+	struct sysctl_oid_list *sol;
+	struct sysctl_oid *soid;
+
+	scp = p;
+	device = scp->device;
+
+	scl = device_get_sysctl_ctx(device);
+	sol = SYSCTL_CHILDREN(device_get_sysctl_tree(device));
+
+	SYSCTL_ADD_PROC(scl, sol,
+	    OID_AUTO, "lnb", CTLTYPE_INT|CTLFLAG_RW|CTLFLAG_ANYBODY,
+	    scp, 0, sysctl_lnb, "I", "LNB");
+
+	SYSCTL_ADD_PROC(scl, sol,
+	    OID_AUTO, "pt3debug", CTLTYPE_INT|CTLFLAG_RW|CTLFLAG_ANYBODY,
+	    scp, 0, sysctl_pt3debug, "I", "PT3DEBUG");
+
+
+
+	soid = SYSCTL_ADD_NODE(scl, sol,
+	    OID_AUTO, "s0", CTLFLAG_RD, 0, "ISDB-S tuner0");
+
+	SYSCTL_ADD_PROC(scl, SYSCTL_CHILDREN(soid),
+	    OID_AUTO, "freq", CTLTYPE_INT|CTLFLAG_WR|CTLFLAG_ANYBODY,
+	    scp->dev[0], 0, sysctl_freq, "I", "channel freq.");
+	SYSCTL_ADD_PROC(scl, SYSCTL_CHILDREN(soid),
+	    OID_AUTO, "signal", CTLTYPE_INT|CTLFLAG_RD,
+	    scp->dev[0], 0, sysctl_signal, "I", "signal strength");
+
+	soid = SYSCTL_ADD_NODE(scl, sol,
+	    OID_AUTO, "t0", CTLFLAG_RD, 0, "ISDB-T tuner0");
+
+	SYSCTL_ADD_PROC(scl, SYSCTL_CHILDREN(soid),
+	    OID_AUTO, "freq", CTLTYPE_INT|CTLFLAG_WR|CTLFLAG_ANYBODY,
+	    scp->dev[2], 0, sysctl_freq, "I", "channel freq.");
+	SYSCTL_ADD_PROC(scl, SYSCTL_CHILDREN(soid),
+	    OID_AUTO, "signal", CTLTYPE_INT|CTLFLAG_RD,
+	    scp->dev[2], 0, sysctl_signal, "I", "signal strength");
+
+	soid = SYSCTL_ADD_NODE(scl, sol,
+	    OID_AUTO, "s1", CTLFLAG_RD, 0, "ISDB-S tuner1");
+
+	SYSCTL_ADD_PROC(scl, SYSCTL_CHILDREN(soid),
+	    OID_AUTO, "freq", CTLTYPE_INT|CTLFLAG_WR|CTLFLAG_ANYBODY,
+	    scp->dev[1], 0, sysctl_freq, "I", "channel freq.");
+	SYSCTL_ADD_PROC(scl, SYSCTL_CHILDREN(soid),
+	    OID_AUTO, "signal", CTLTYPE_INT|CTLFLAG_RD,
+	    scp->dev[1], 0, sysctl_signal, "I", "signal strength");
+
+	soid = SYSCTL_ADD_NODE(scl, sol,
+	    OID_AUTO, "t1", CTLFLAG_RD, 0, "ISDB-T tuner1");
+
+	SYSCTL_ADD_PROC(scl, SYSCTL_CHILDREN(soid),
+	    OID_AUTO, "freq", CTLTYPE_INT|CTLFLAG_WR|CTLFLAG_ANYBODY,
+	    scp->dev[3], 0, sysctl_freq, "I", "channel freq.");
+	SYSCTL_ADD_PROC(scl, SYSCTL_CHILDREN(soid),
+	    OID_AUTO, "signal", CTLTYPE_INT|CTLFLAG_RD,
+	    scp->dev[3], 0, sysctl_signal, "I", "signal strength");
+}
+
+static int
+sysctl_pt3debug(SYSCTL_HANDLER_ARGS)
+{
+	struct ptx_softc *scp = (struct ptx_softc *)arg1;
+
+	int val = scp->pt3debug;
+	int error;
+
+	error = sysctl_handle_int(oidp, &val, 0, req);
+	if (error) {
+		return (error);
+	}
+	if (val != scp->pt3debug) {
+		scp->pt3debug=val;
+	}
+	return error;
+}
+static int
+sysctl_lnb(SYSCTL_HANDLER_ARGS)
+{
+	struct ptx_softc *scp = (struct ptx_softc *)arg1;
+
+	int val = scp->lnb;
+	int error;
+
+	error = sysctl_handle_int(oidp, &val, 0, req);
+	if (error) {
+		return (error);
+	}
+
+	if (val != scp->lnb) {
+		// LNB OFF:0 +11V:1 +15V:2
+		if (0 <= val && val <= 2) {
+			set_lnb(scp, val);
+		} else {
+			error = EINVAL;
+		}
+	}
+
+	return error;
+}
+
+static int
+sysctl_freq(SYSCTL_HANDLER_ARGS)
+{
+	struct cdev *dev = (struct cdev *)arg1;
+	//struct ptx_softc *scp = (struct ptx_softc *)dev->si_drv1;
+	PT3_CHANNEL *s = (PT3_CHANNEL *)dev->si_drv2;
+
+	FREQUENCY freq;
+	int error;
+
+	error = sysctl_handle_int(oidp, &s->freq, 0, req);
+	if (error || !req->newptr) {
+		return (error);
+	}
+
+	freq.frequencyno = s->freq & 0xffff;
+	freq.slot = (s->freq >> 16)& 0xffff;
+	return SetChannel(s, &freq);
+}
+
+static int
+sysctl_signal(SYSCTL_HANDLER_ARGS)
+{
+	struct cdev *dev = (struct cdev *)arg1;
+	//struct ptx_softc *scp = (struct ptx_softc *)dev->si_drv1;
+	PT3_CHANNEL *s = (PT3_CHANNEL *)dev->si_drv2;
+
+	int status, signal, curr_agc, max_agc;
+
+	if (req->newptr) {
+		return EPERM;
+	}
+	status = get_cn_agc(s, &signal, &curr_agc, &max_agc);
+
+	return(sysctl_handle_int(oidp, NULL, status, req));
+}
+
+#else
 
 static int
 pt3_open(struct inode *inode, struct file *file)
@@ -733,6 +1131,7 @@ count_used_bs_tuners(PT3_DEVICE *device)
 
 	return count;
 }
+
 
 static long
 pt3_do_ioctl(struct file  *file, unsigned int cmd, unsigned long arg0)
@@ -1183,3 +1582,5 @@ pt3_pci_cleanup(void)
 
 module_init(pt3_pci_init);
 module_exit(pt3_pci_cleanup);
+#endif
+

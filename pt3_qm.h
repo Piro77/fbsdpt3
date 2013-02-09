@@ -51,5 +51,5 @@ void pt3_qm_init_reg_param(PT3_QM *qm);
 STATUS pt3_qm_init(PT3_QM *qm, PT3_BUS *bus);
 PT3_QM * create_pt3_qm(PT3_I2C *i2c, PT3_TC *tc);
 void free_pt3_qm(PT3_QM *qm);
-
+STATUS pt3_qm_get_locked(PT3_QM *qm, PT3_BUS *bus, int *locked);
 #endif

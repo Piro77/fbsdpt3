@@ -32,7 +32,7 @@ start_i2c(struct ptx_softc *, uint32_t *, uint32_t *, uint32_t);
 static void
 stop_i2c(struct ptx_softc *, uint32_t *, uint32_t *, uint32_t, uint32_t);
 
-// PCI¤Ë½ñ¤­¹ş¤àI2C¥Ç¡¼¥¿À¸À®
+// PCIã«æ›¸ãè¾¼ã‚€I2Cãƒ‡ãƒ¼ã‚¿ç”Ÿæˆ
 static void
 makei2c(struct ptx_softc *scp, uint32_t base_addr, uint32_t i2caddr, uint32_t writemode, uint32_t data_en, uint32_t clock, uint32_t busy)
 {
@@ -61,17 +61,17 @@ xc3s_init(struct ptx_softc *scp)
   BIT 16, 16+8 ON
   BIT 17, 17+8 ON
 */
-	// XC3S½é´ü²½
+	// XC3SåˆæœŸåŒ–
 	for (lp = 0; lp < PROGRAM_ADDRESS; lp++) {
 		makei2c(scp, lp, 0, READ_EN, DATA_DIS, CLOCK_DIS, BUSY_DIS);
 	}
-	// XC3S ½é´ü²½ÂÔ¤Á (512 PCI Clocks)
+	// XC3S åˆæœŸåŒ–å¾…ã¡ (512 PCI Clocks)
 	for (lp = 0; lp < XC3S_PCI_CLOCK; lp++) {
 		makei2c(scp, 0, 0, READ_EN, DATA_DIS, CLOCK_DIS, BUSY_DIS);
 	}
-	// ¥×¥í¥Æ¥¯¥È²ò½ü
-	// ¤³¤ì¤Ï²¿¤ò°Õ¿Ş¤·¤Æ¤¤¤ë¤ó¤À¤í¤¦¡©
-	// ¸µ¥³¡¼¥É¤¬ÎÉ¤¯È½¤é¤Ê¤¤
+	// ãƒ—ãƒ­ãƒ†ã‚¯ãƒˆè§£é™¤
+	// ã“ã‚Œã¯ä½•ã‚’æ„å›³ã—ã¦ã„ã‚‹ã‚“ã ã‚ã†ï¼Ÿ
+	// å…ƒã‚³ãƒ¼ãƒ‰ãŒè‰¯ãåˆ¤ã‚‰ãªã„
 	for (lp = 0; lp < 57; lp++) {
 		val = bus_space_read_4(scp->bt, scp->bh, 0x0);
 		if (val & I2C_READ_SYNC) {
@@ -124,7 +124,7 @@ xc3s_init(struct ptx_softc *scp)
 		}
 	}
 
-	// ¥¹¥È¥ê¡¼¥à¤´¤È¤ÎÅ¾Á÷À©¸æ(OFF)
+	// ã‚¹ãƒˆãƒªãƒ¼ãƒ ã”ã¨ã®è»¢é€åˆ¶å¾¡(OFF)
 	for (lp = 1; lp <= MAX_STREAM; lp++) {
 		if ((rc = SetStream(scp, lp, FALSE)) ||
 		    (rc = SetStreamGray(scp, lp, 0)))
@@ -142,7 +142,7 @@ i2c_lock(struct ptx_softc *scp, uint32_t firstval, uint32_t  secondval, uint32_t
 	bus_space_write_4(scp->bt, scp->bh, 0x0, firstval);
 	bus_space_write_4(scp->bt, scp->bh, 0x0, secondval);
 
-	// RAM¤¬¥í¥Ã¥¯¤µ¤ì¤¿¡©
+	// RAMãŒãƒ­ãƒƒã‚¯ã•ã‚ŒãŸï¼Ÿ
 	for (lp = 0; lp < 10; lp++) {
 		val = bus_space_read_4(scp->bt, scp->bh, 0x0);
 		if (val & lockval) {
@@ -164,11 +164,11 @@ i2c_lock_one(struct ptx_softc *scp, uint32_t firstval, uint32_t lockval)
 
 	bus_space_write_4(scp->bt, scp->bh, 0x0, firstval);
 
-	// RAM¤¬¥í¥Ã¥¯¤µ¤ì¤¿¡©
+	// RAMãŒãƒ­ãƒƒã‚¯ã•ã‚ŒãŸï¼Ÿ
 	for (lp = 0; lp < 10; lp++) { // ???
 		for (lp2 = 0; lp2 < 1024; lp2++){
 			val2 = bus_space_read_4(scp->bt, scp->bh, 0x0);
-			// ºÇ½é¤Ë¼èÆÀ¤·¤¿¥Ç¡¼¥¿¤ÈµÕ¤Ë¤Ê¤ì¤ĞOK
+			// æœ€åˆã«å–å¾—ã—ãŸãƒ‡ãƒ¼ã‚¿ã¨é€†ã«ãªã‚Œã°OK
 			if ((val2 & lockval) != val) {
 				return 0;
 			}
@@ -216,26 +216,26 @@ blockwrite(struct ptx_softc *scp, WBLOCK *wblock)
 	start_i2c(scp, &address, &clock, old_bits);
 	old_bits = 0;
 
-	// ¤Ş¤ºI2C¥¹¥ì¡¼¥Ö¥¢¥É¥ì¥¹¤ò½ñ¤¯(7bit)
+	// ã¾ãšI2Cã‚¹ãƒ¬ãƒ¼ãƒ–ã‚¢ãƒ‰ãƒ¬ã‚¹ã‚’æ›¸ã(7bit)
 	for (bitpos = 0; bitpos < 7; bitpos++) {
 		bits  = ((wblock->addr >> (6 - bitpos)) & 1);
 		writebits(scp, &address, old_bits, bits);
 		old_bits = bits;
 	}
-	// ¥¿¥¤¥×¡§WRT
+	// ã‚¿ã‚¤ãƒ—ï¼šWRT
 	writebits(scp, &address, old_bits, 0);
-	// ACK/NACKÍÑ(É¬¤º1)
+	// ACK/NACKç”¨(å¿…ãš1)
 	writebits(scp, &address, 0, 1);
 
 	old_bits = 1;
-	// I2C¥¹¥ì¡¼¥Ö¥Ç¥Ğ¥¤¥¹¤Ë¥Ç¡¼¥¿¤ò½ñ¤¯
+	// I2Cã‚¹ãƒ¬ãƒ¼ãƒ–ãƒ‡ãƒã‚¤ã‚¹ã«ãƒ‡ãƒ¼ã‚¿ã‚’æ›¸ã
 	for (lp = 0; lp < wblock->count; lp++) {
 		for (bitpos = 0; bitpos < 8; bitpos++) {
 			bits = ((wblock->value[lp] >> (7 - bitpos)) & 1);
 			writebits(scp, &address, old_bits, bits);
 			old_bits = bits;
 		}
-		// ACK/NACKÍÑ(É¬¤º1)
+		// ACK/NACKç”¨(å¿…ãš1)
 		writebits(scp, &address, old_bits, 1);
 		old_bits = 1;
 	}
@@ -268,26 +268,26 @@ blockread(struct ptx_softc *scp, WBLOCK *wblock, int count)
 	start_i2c(scp, &address, &clock, old_bits);
 	old_bits = 0;
 
-	// ¤Ş¤ºI2C¥¹¥ì¡¼¥Ö¥¢¥É¥ì¥¹¤ò½ñ¤¯(7bit)
+	// ã¾ãšI2Cã‚¹ãƒ¬ãƒ¼ãƒ–ã‚¢ãƒ‰ãƒ¬ã‚¹ã‚’æ›¸ã(7bit)
 	for (bitpos = 0; bitpos < 7; bitpos++) {
 		bits = ((wblock->addr >> (6 - bitpos)) & 1);
 		writebits(scp, &address, old_bits, bits);
 		old_bits = bits;
 	}
-	// ¥¿¥¤¥×¡§WRT
+	// ã‚¿ã‚¤ãƒ—ï¼šWRT
 	writebits(scp, &address, old_bits, 0);
-	// ACK/NACKÍÑ(É¬¤º1)
+	// ACK/NACKç”¨(å¿…ãš1)
 	writebits(scp, &address, 0, 1);
 
 	old_bits = 1;
-	// I2C¥¹¥ì¡¼¥Ö¥Ç¥Ğ¥¤¥¹¤Ë¥Ç¡¼¥¿¤ò½ñ¤¯(Read¤·¤¿¤¤¥¢¥É¥ì¥¹)
+	// I2Cã‚¹ãƒ¬ãƒ¼ãƒ–ãƒ‡ãƒã‚¤ã‚¹ã«ãƒ‡ãƒ¼ã‚¿ã‚’æ›¸ã(Readã—ãŸã„ã‚¢ãƒ‰ãƒ¬ã‚¹)
 	for (lp = 0; lp < wblock->count; lp++) {
 		for (bitpos = 0; bitpos < 8; bitpos++) {
 			bits = ((wblock->value[lp] >> (7 - bitpos)) & 1);
 			writebits(scp, &address, old_bits, bits);
 			old_bits = bits;
 		}
-		// ACK/NACKÍÑ(É¬¤º1)
+		// ACK/NACKç”¨(å¿…ãš1)
 		writebits(scp, &address, old_bits, 1);
 		old_bits = 1;
 	}
@@ -297,39 +297,39 @@ blockread(struct ptx_softc *scp, WBLOCK *wblock, int count)
 	clock = TRUE;
 	address += 1;
 
-	// ¤³¤³¤«¤é Read
+	// ã“ã“ã‹ã‚‰ Read
 	start_i2c(scp, &address, &clock, old_bits);
 	old_bits = 0;
-	// ¤â¤¦°ìÅÙI2C¥¹¥ì¡¼¥Ö¥¢¥É¥ì¥¹¤ò½ñ¤¯(7bit)
+	// ã‚‚ã†ä¸€åº¦I2Cã‚¹ãƒ¬ãƒ¼ãƒ–ã‚¢ãƒ‰ãƒ¬ã‚¹ã‚’æ›¸ã(7bit)
 	for (bitpos = 0; bitpos < 7; bitpos++) {
 		bits = ((wblock->addr >> (6 - bitpos)) & 1);
 		writebits(scp, &address, old_bits, bits);
 		old_bits = bits;
 	}
-	// ¥¿¥¤¥×¡§RD
+	// ã‚¿ã‚¤ãƒ—ï¼šRD
 	writebits(scp, &address, old_bits, 1);
-	// ACK/NACKÍÑ(É¬¤º1)
+	// ACK/NACKç”¨(å¿…ãš1)
 	writebits(scp, &address, 1, 1);
 
 	old_bits = 1;
-	// I2C¥¹¥ì¡¼¥Ö¥Ç¥Ğ¥¤¥¹¤«¤é¥Ç¡¼¥¿¤òRead¤¹¤ë
+	// I2Cã‚¹ãƒ¬ãƒ¼ãƒ–ãƒ‡ãƒã‚¤ã‚¹ã‹ã‚‰ãƒ‡ãƒ¼ã‚¿ã‚’Readã™ã‚‹
 	for (lp = 0; lp < count; lp++) {
 		for (bitpos = 0; bitpos < 8; bitpos++) {
-			// ¥Ç¡¼¥¿¤òRead¤¹¤ë¤¿¤á¾ï¤Ë1¤ò½ĞÎÏ¤¹¤ë
-			// ¥¯¥í¥Ã¥¯¥é¥¤¥ó¤òÆ°¤«¤¹¤¿¤á¤Ëwritebits¤ò»È¤¦
+			// ãƒ‡ãƒ¼ã‚¿ã‚’Readã™ã‚‹ãŸã‚å¸¸ã«1ã‚’å‡ºåŠ›ã™ã‚‹
+			// ã‚¯ãƒ­ãƒƒã‚¯ãƒ©ã‚¤ãƒ³ã‚’å‹•ã‹ã™ãŸã‚ã«writebitsã‚’ä½¿ã†
 			writebits(scp, &address, old_bits, 1);
 			// Read Mode Set
-			// Â¿Ê¬¤³¤ì¤ÇFPGA¤ÎFIFO¤ËÆş¤ì¤ë
+			// å¤šåˆ†ã“ã‚Œã§FPGAã®FIFOã«å…¥ã‚Œã‚‹
 			makei2c(scp, address, address + 1, 1, 0, 0, 1);
 			address += 1;
 			old_bits = 1;
 		}
 		if (lp >= (count - 1)) {
-			// ACK/NACKÍÑ(É¬¤º1)
+			// ACK/NACKç”¨(å¿…ãš1)
 			writebits(scp, &address, old_bits, 1);
 			old_bits = 0;
 		} else {
-			// ACK/NACKÍÑ(É¬¤º1)
+			// ACK/NACKç”¨(å¿…ãš1)
 			writebits(scp, &address, old_bits, 0);
 			old_bits = 1;
 		}
@@ -375,9 +375,9 @@ begin_i2c(struct ptx_softc *scp, uint32_t *address, uint32_t *clock)
 static void
 start_i2c(struct ptx_softc *scp, uint32_t *address, uint32_t *clock, uint32_t data)
 {
-	// ¥Ç¡¼¥¿¤¬»Ä¤Ã¤Æ¤¤¤Ê¤±¤ì¤Ğ¥Ç¡¼¥¿¤ò²¼¤²¤ë
+	// ãƒ‡ãƒ¼ã‚¿ãŒæ®‹ã£ã¦ã„ãªã‘ã‚Œã°ãƒ‡ãƒ¼ã‚¿ã‚’ä¸‹ã’ã‚‹
 	if (!data) {
-		// CLOCK¤¬¤¢¤ì¤ĞCLOCK¤ò²¼¤²¤ë
+		// CLOCKãŒã‚ã‚Œã°CLOCKã‚’ä¸‹ã’ã‚‹
 		if (*clock != TRUE) {
 			*clock = TRUE;
 			makei2c(scp, *address, *address + 1, 0, 1, 1, 1);
@@ -400,9 +400,9 @@ start_i2c(struct ptx_softc *scp, uint32_t *address, uint32_t *clock, uint32_t da
 static void
 stop_i2c(struct ptx_softc *scp, uint32_t *address, uint32_t *clock, uint32_t data, uint32_t end)
 {
-	// ¥Ç¡¼¥¿¤¬»Ä¤Ã¤Æ¤¤¤Æ
+	// ãƒ‡ãƒ¼ã‚¿ãŒæ®‹ã£ã¦ã„ã¦
 	if (data) {
-		// ¥¯¥í¥Ã¥¯¤¬¤¢¤ì¤Ğ
+		// ã‚¯ãƒ­ãƒƒã‚¯ãŒã‚ã‚Œã°
 		if (*clock != TRUE) {
 			*clock = TRUE;
 			makei2c(scp, *address, *address + 1, 0, 0, 1, 1);
@@ -411,7 +411,7 @@ stop_i2c(struct ptx_softc *scp, uint32_t *address, uint32_t *clock, uint32_t dat
 		makei2c(scp, *address, *address + 1, 0, 1, 1, 1);
 		*address += 1;
 	}
-	// ¥¯¥í¥Ã¥¯¤¬Íî¤Á¤Æ¤¤¤ì¤Ğ
+	// ã‚¯ãƒ­ãƒƒã‚¯ãŒè½ã¡ã¦ã„ã‚Œã°
 	if (*clock) {
 		*clock = FALSE;
 		makei2c(scp, *address, *address + 1, 0, 1, 0, 1);
@@ -442,7 +442,7 @@ i2c_write(struct ptx_softc *scp, WBLOCK *wblock)
 	blockwrite(scp, wblock);
 
 	bus_space_write_4(scp->bt, scp->bh, FIFO_GO_ADDR, FIFO_GO);
-	//¤È¤ê¤¢¤¨¤º¥í¥Ã¥¯¤·¤Ê¤¤¤è¤¦¤Ë¡£
+	//ã¨ã‚Šã‚ãˆãšãƒ­ãƒƒã‚¯ã—ãªã„ã‚ˆã†ã«ã€‚
 	for (lp = 0; lp < 100; lp++) {
 		val = bus_space_read_4(scp->bt, scp->bh, FIFO_RESULT_ADDR);
 		if (!(val & FIFO_DONE)) {
