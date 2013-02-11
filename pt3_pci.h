@@ -24,6 +24,8 @@
 #define PT3_PRINTK(verbose, level, fmt, args...)    {pt3_printf(verbose,fmt, ##args);}
 extern int
 pt3_init(void *);
+extern void
+pt3_exit(void *);
 void
 pt3_sysctl_init(void *);
 struct cdev* pt3_make_tuner(int , int, int);

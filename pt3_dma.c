@@ -361,6 +361,7 @@ pt3_dma_copy(PT3_DMA *dma, char __user *buf, size_t size, loff_t *ppos, int look
 				csize = (page->size - page->data_pos);
 			}
 #if defined(__FreeBSD__)
+			// XXX uiomove?
 #else
 			if (copy_to_user(&buf[size - remain], &page->data[page->data_pos], csize)) {
 				mutex_unlock(&dma->lock);
@@ -617,7 +618,8 @@ alloc_dmabuf(struct ptx_softc *scp, PT3_DMA_PAGE *page, bus_dma_tag_t dmat)
 	error = bus_dmamap_load(dmat,
 	    page->map,
 	    page->va,
-	    page->size,
+	    // XXX page->size, サイズが大きすぎる？？
+	    DMA_PAGE_SIZE,
 	    set_addr, &page->pa, // calback/arg
 	    BUS_DMA_NOWAIT);
 	if (error) {
@@ -626,11 +628,11 @@ alloc_dmabuf(struct ptx_softc *scp, PT3_DMA_PAGE *page, bus_dma_tag_t dmat)
 		return 0;
 	} else if (page->pa == 0) {
 		device_printf(scp->device,
-			      "alloc_dmabuf: bus_dmamap_load callback received %d\n", EFBIG);
+			      "alloc_dmabuf: bus_dmamap_load callback received %d size %d\n", EFBIG,page->size);
 		error = EFBIG;
 		return 0;
 	}
-	page->addr = (uintptr_t) page->pa;
+	page->addr = (uintptr_t)page->pa;
 	return (uint8_t *)page->va;
 }
 #endif

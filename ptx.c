@@ -144,7 +144,6 @@ ptx_attach(device_t device)
 	scp->rid_memory = PCIR_BARS;
 	scp->res_memory = bus_alloc_resource_any(device, SYS_RES_MEMORY,
 	    &scp->rid_memory, RF_ACTIVE);
-	device_printf(device, "bars %d %d %d\n",PCIR_BARS,PCIR_BAR(0),PCIR_BAR(1));
 	if (! scp->res_memory) {
 		device_printf(device, "could not map memory\n");
 		return ENXIO;
@@ -260,6 +259,8 @@ ptx_detach (device_t device)
 
 	if (scp->cardtype == PT3) {
 
+	pt3_exit(scp);
+
 	if (scp->res_memory) {
 		bus_release_resource(device, SYS_RES_MEMORY,
 			scp->rid_memory, scp->res_memory);
@@ -270,7 +271,6 @@ ptx_detach (device_t device)
 			scp->pt3_rid_memory, scp->pt3_res_memory);
 		scp->pt3_res_memory = 0;
 	}
-
 
 		return 0;
 	}

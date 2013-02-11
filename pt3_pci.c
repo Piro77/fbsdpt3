@@ -586,8 +586,7 @@ get_cn_agc(PT3_CHANNEL *channel, __u32 *cn, __u32 *curr_agc, __u32 *max_agc)
 		*curr_agc = 0;
 		*max_agc = 0;
 	}
-	PT3_PRINTK(7, KERN_INFO, "cn=0x%x\n", *cn);
-	PT3_PRINTK(7, KERN_INFO, "agc=0x%x\n", *curr_agc);
+	PT3_PRINTK(7, KERN_INFO, "id %d cn=0x%x agc=0x%x\n", channel->id,*cn,*curr_agc);
 
 	return STATUS_OK;
 }
@@ -655,7 +654,7 @@ SetChannel(PT3_CHANNEL *channel, FREQUENCY *freq)
 		// wait for fill buffer
 		schedule_timeout_interruptible(msecs_to_jiffies(200));
 		// reset_error_count
-		// XXX pt3_dma_set_test_mode(channel->dma, 0, 0, 0, 1);
+		pt3_dma_set_test_mode(channel->dma, 0, 0, 0, 1);
 		return status;
 		break;
 	}
@@ -709,30 +708,110 @@ pt3_printf(int verbose, const char *fmt, ...)
 static int pt3read(struct cdev *dev, struct uio *uio, int ioflag)
 {
         //struct ptx_softc *scp = (struct ptx_softc *) dev->si_drv1;
-        //PT3_CHANNEL *channel = (PT3_CHANNEL *) dev->si_drv2;
+#if 0 //XXX
+	int rcnt;
+        PT3_CHANNEL *channel = (PT3_CHANNEL *) dev->si_drv2;
 
+	rcnt = pt3_dma_copy(channel->dma, buf, cnt, ppos,
+						dma_look_ready[channel->dma->real_index]);
+	if (rcnt < 0) {
+		PT3_PRINTK(1, KERN_INFO, "fail copy_to_user.\n");
+		return -EFAULT;
+	}
+
+	return rcnt;
+#endif
 	return -1;
 }
 static int
 pt3open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 {
         //struct ptx_softc *scp = (struct ptx_softc *) dev->si_drv1;
-        //PT3_CHANNEL *channel = (PT3_CHANNEL *) dev->si_drv2;
+        PT3_CHANNEL *channel = (PT3_CHANNEL *) dev->si_drv2;
 
+	mtx_lock(&channel->lock);
+	if (channel->valid) {
+		mtx_unlock(&channel->lock);
+		PT3_PRINTK(1, KERN_DEBUG, "device is already used.\n");
+		return EBUSY;
+	}
+	PT3_PRINTK(7, KERN_DEBUG, "selected tuner_no=%d type=%d\n",
+		channel->tuner->tuner_no, channel->type);
 
-        return EBUSY;
+	set_tuner_sleep(channel->type, channel->tuner, 0);
+	schedule_timeout_interruptible(msecs_to_jiffies(100));
+	channel->valid = 1;
+
+	mtx_unlock(&channel->lock);
+
+        return 0;
 }
 static int
 pt3close(struct cdev *dev, int fflag, int devtype, struct thread *td)
 {
         //struct ptx_softc *scp = (struct ptx_softc *) dev->si_drv1;
-        //PT3_CHANNEL *channel = (PT3_CHANNEL *) dev->si_drv2;
+        PT3_CHANNEL *channel = (PT3_CHANNEL *) dev->si_drv2;
+
+	mtx_lock(&channel->lock);
+	channel->valid = 0;
+	pt3_dma_set_enabled(channel->dma, 0);
+	mtx_unlock(&channel->lock);
+
+	PT3_PRINTK(7, KERN_INFO, "(%d) error count %d\n",
+				channel->id,
+				pt3_dma_get_ts_error_packet_count(channel->dma));
+	set_tuner_sleep(channel->type, channel->tuner, 1);
+	schedule_timeout_interruptible(msecs_to_jiffies(50));
 
 	return 0;
 }
 
 
 
+void pt3_exit(void *p)
+{
+	struct ptx_softc *dev_conf;
+	dev_conf = p;
+	int lp;
+	PT3_TUNER   *tuner;
+	PT3_CHANNEL *channel;
+
+	for (lp = 0; lp < MAX_CHANNEL; lp++) {
+		channel = dev_conf->dev[lp]->si_drv2;
+		if (channel->dma->enabled)
+			pt3_dma_set_enabled(channel->dma, 0);
+		set_tuner_sleep(channel->type, channel->tuner, 1);
+	}
+	set_lnb(dev_conf, 0);
+	for (lp = 0; lp < MAX_TUNER; lp++) {
+		tuner = &dev_conf->tuner[lp];
+
+		if (tuner->tc_s != NULL) {
+			free_pt3_tc(tuner->tc_s);
+		}
+		if (tuner->tc_t != NULL) {
+			pt3_tc_set_powers(tuner->tc_t, NULL, 0, 0);
+			free_pt3_tc(tuner->tc_t);
+		}
+		if (tuner->qm != NULL)
+			free_pt3_qm(tuner->qm);
+		if (tuner->mx != NULL)
+			free_pt3_mx(tuner->mx);
+	}
+	for (lp = 0; lp < MAX_CHANNEL; lp++) {
+		channel = dev_conf->dev[lp]->si_drv2;
+		if (channel != NULL) {
+			if (channel->dma != NULL)
+				free_pt3_dma((void *)dev_conf, channel->dma);
+			destroy_dev(dev_conf->dev[lp]);
+		}
+	}
+	pt3_i2c_reset(dev_conf->i2c);
+	free_pt3_i2c(dev_conf->i2c);
+
+	PT3_PRINTK(0, KERN_DEBUG, "free PT3 DEVICE.\n");
+	return;
+}
 int pt3_init(void *p)
 {
 struct ptx_softc *scp;
@@ -780,6 +859,8 @@ uint32_t command;
 	scp->i2c = i2c;
 
 	set_lnb(scp, 0);
+	//XXX
+	scp->pt3debug=7;
 
         for (i = 0; i < MAX_TUNER; i++) {
                 uint8_t tc_addr, tuner_addr;
@@ -830,16 +911,16 @@ uint32_t command;
                 channel = kzalloc(sizeof(PT3_CHANNEL), GFP_KERNEL);
                 if (channel == NULL) {
                         PT3_PRINTK(0, KERN_ERR, "out of memory !\n");
-                        //goto out_err_dma;
+                        goto out_err_dma;
                 }
-#if 0
                 channel->dma = create_pt3_dma(scp, i2c, real_channel[lp]);
                 if (channel->dma == NULL) {
                         PT3_PRINTK(0, KERN_ERR, "fail create dma.\n");
                         kfree(channel);
-                        //goto out_err_dma;
+                        goto out_err_dma;
                 }
-#endif
+		channel->id = real_channel[lp];
+		channel->valid = 0;
 		mtx_init(&channel->lock, "pt3channel", NULL, MTX_DEF);
                 channel->tuner = &scp->tuner[real_channel[lp] & 1];
                 channel->type = channel_type[lp];
@@ -859,6 +940,16 @@ uint32_t command;
 	device_printf(device, "PT3 init complete\n");
  
 return 0;
+out_err_dma:
+        for (lp = 0; lp < MAX_CHANNEL; lp++) {
+                channel = scp->dev[lp]->si_drv2;
+                if (channel != NULL) {
+                        if (channel->dma != NULL)
+                                free_pt3_dma(scp, channel->dma);
+                        kfree(channel);
+                }
+        }
+
 out_err_i2c:
         for (lp = 0; lp < MAX_TUNER; lp++) {
                 tuner = &scp->tuner[lp];
@@ -1022,7 +1113,7 @@ sysctl_signal(SYSCTL_HANDLER_ARGS)
 	}
 	status = get_cn_agc(s, &signal, &curr_agc, &max_agc);
 
-	return(sysctl_handle_int(oidp, NULL, status, req));
+	return(sysctl_handle_int(oidp, NULL, signal, req));
 }
 
 #else
