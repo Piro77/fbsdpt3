@@ -318,7 +318,11 @@ pt3_dma_set_enabled(PT3_DMA *dma, int enabled)
 }
 
 ssize_t
+#if defined(__FreeBSD__)
+pt3_dma_copy(PT3_DMA *dma, struct uio *uio, size_t size, int look_ready)
+#else
 pt3_dma_copy(PT3_DMA *dma, char __user *buf, size_t size, loff_t *ppos, int look_ready)
+#endif
 {
 	int ready;
 	PT3_DMA_PAGE *page;
@@ -332,8 +336,8 @@ pt3_dma_copy(PT3_DMA *dma, char __user *buf, size_t size, loff_t *ppos, int look
 	mutex_lock(&dma->lock);
 #endif
 
-	PT3_PRINTK(7, KERN_DEBUG, "dma_copy ts_pos=0x%x data_pos=0x%x\n",
-				dma->ts_pos, dma->ts_info[dma->ts_pos].data_pos);
+	PT3_PRINTK(7, KERN_DEBUG, "dma_copy ts_pos=0x%x data_pos=0x%x size %d\n",
+				dma->ts_pos, dma->ts_info[dma->ts_pos].data_pos,size);
 
 	remain = size;
 	for (;;) {
@@ -361,14 +365,20 @@ pt3_dma_copy(PT3_DMA *dma, char __user *buf, size_t size, loff_t *ppos, int look
 				csize = (page->size - page->data_pos);
 			}
 #if defined(__FreeBSD__)
-			// XXX uiomove?
+			int rv;
+			rv = uiomove(&page->data[page->data_pos],csize,uio);
+			if (rv) {
+				mtx_unlock(&dma->lock);
+				PT3_PRINTK(7, KERN_DEBUG, "uiomove error %d\n",rv);
+				return rv;
+			}
 #else
 			if (copy_to_user(&buf[size - remain], &page->data[page->data_pos], csize)) {
 				mutex_unlock(&dma->lock);
 				return -EFAULT;
 			}
-#endif
 			*ppos += csize;
+#endif
 			remain -= csize;
 			page->data_pos += csize;
 			if (page->data_pos >= page->size) {
@@ -515,7 +525,7 @@ create_pt3_dma(void *p, PT3_I2C *i2c, int real_index)
 		page->size = BLOCK_SIZE;
 		page->data_pos = 0;
 #if defined(__FreeBSD__)
-                page->data = alloc_dmabuf(scp, page, scp->dmat);
+                page->data = alloc_dmabuf(scp, page, scp->pt3_dmat);
 #else
 		page->data = pci_alloc_consistent(hwdev, page->size, &page->addr);
 #endif
@@ -574,7 +584,7 @@ free_pt3_dma(void *p, PT3_DMA *dma)
 			page = &dma->ts_info[i];
 			if (page->size != 0)
 #ifdef __FreeBSD__
-				free_dmabuf(page,scp->dmat);
+				free_dmabuf(page,scp->pt3_dmat);
 #else
 				pci_free_consistent(hwdev, page->size, page->data, page->addr);
 #endif
@@ -618,8 +628,7 @@ alloc_dmabuf(struct ptx_softc *scp, PT3_DMA_PAGE *page, bus_dma_tag_t dmat)
 	error = bus_dmamap_load(dmat,
 	    page->map,
 	    page->va,
-	    // XXX page->size, サイズが大きすぎる？？
-	    DMA_PAGE_SIZE,
+	    page->size,
 	    set_addr, &page->pa, // calback/arg
 	    BUS_DMA_NOWAIT);
 	if (error) {

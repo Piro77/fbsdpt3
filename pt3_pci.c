@@ -708,26 +708,24 @@ pt3_printf(int verbose, const char *fmt, ...)
 static int pt3read(struct cdev *dev, struct uio *uio, int ioflag)
 {
         //struct ptx_softc *scp = (struct ptx_softc *) dev->si_drv1;
-#if 0 //XXX
 	int rcnt;
         PT3_CHANNEL *channel = (PT3_CHANNEL *) dev->si_drv2;
 
-	rcnt = pt3_dma_copy(channel->dma, buf, cnt, ppos,
-						dma_look_ready[channel->dma->real_index]);
+	// XXX testmode??
+	rcnt = pt3_dma_copy(channel->dma, uio, uio->uio_resid,1);
 	if (rcnt < 0) {
 		PT3_PRINTK(1, KERN_INFO, "fail copy_to_user.\n");
 		return -EFAULT;
 	}
 
-	return rcnt;
-#endif
-	return -1;
+	return 0;
 }
 static int
 pt3open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 {
         //struct ptx_softc *scp = (struct ptx_softc *) dev->si_drv1;
         PT3_CHANNEL *channel = (PT3_CHANNEL *) dev->si_drv2;
+	FREQUENCY freq;
 
 	mtx_lock(&channel->lock);
 	if (channel->valid) {
@@ -741,8 +739,14 @@ pt3open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 	set_tuner_sleep(channel->type, channel->tuner, 0);
 	schedule_timeout_interruptible(msecs_to_jiffies(100));
 	channel->valid = 1;
+// XXX とりあえずここでチューニングする
+	freq.frequencyno = channel->freq & 0xffff;
+	freq.slot = (channel->freq >> 16)& 0xffff;
+	SetChannel(channel, &freq);
+// XXX
 
 	mtx_unlock(&channel->lock);
+	pt3_dma_set_enabled(channel->dma, 1);
 
         return 0;
 }
@@ -757,7 +761,7 @@ pt3close(struct cdev *dev, int fflag, int devtype, struct thread *td)
 	pt3_dma_set_enabled(channel->dma, 0);
 	mtx_unlock(&channel->lock);
 
-	PT3_PRINTK(7, KERN_INFO, "(%d) error count %d\n",
+	PT3_PRINTK(7, KERN_INFO, "channel->id = %d error count %d\n",
 				channel->id,
 				pt3_dma_get_ts_error_packet_count(channel->dma));
 	set_tuner_sleep(channel->type, channel->tuner, 1);
@@ -905,6 +909,20 @@ uint32_t command;
 		device_printf(device, "could not create bus DMA tag(%d)\n", error);
 		//goto out_err;
 	}
+	error = bus_dma_tag_create(NULL,
+	    4, 0, // alignment=4byte, boundary=norestriction
+	    BUS_SPACE_MAXADDR_32BIT, BUS_SPACE_MAXADDR,
+	    NULL, NULL, // no filtfunc/arg
+	    DMA_PAGE_SIZE * 47, 1, DMA_PAGE_SIZE * 47, // maxsize, 1segs, segsize
+	    0,
+	    NULL, NULL, // no lockfunc/arg
+	    &scp->pt3_dmat);
+	if (error) {
+		device_printf(device, "could not create bus DMA tag(%d)\n", error);
+		//goto out_err;
+	}
+
+
 
 
         for (lp = 0; lp < MAX_CHANNEL; lp++) {
@@ -1196,7 +1214,7 @@ pt3_read(struct file *file, char __user *buf, size_t cnt, loff_t * ppos)
 	channel = file->private_data;
 
 	rcnt = pt3_dma_copy(channel->dma, buf, cnt, ppos,
-						dma_look_ready[channel->dma->real_index]);
+					dma_look_ready[channel->dma->real_index]);
 	if (rcnt < 0) {
 		PT3_PRINTK(1, KERN_INFO, "fail copy_to_user.\n");
 		return -EFAULT;

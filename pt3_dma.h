@@ -55,7 +55,11 @@ typedef struct __PT3_DMA {
 void pt3_dma_build_page_descriptor(PT3_DMA *dma, int loop);
 void pt3_dma_set_test_mode(PT3_DMA *dma, int test, __u16 init, int not, int reset);
 void pt3_dma_set_enabled(PT3_DMA *dma, int enabled);
+#if defined(__FreeBSD__)
+ssize_t pt3_dma_copy(PT3_DMA *dma, struct uio *uio,size_t size, int look_ready);
+#else
 ssize_t pt3_dma_copy(PT3_DMA *dma, char __user *buf, size_t size, loff_t *ppos, int look_ready);
+#endif
 int pt3_dma_ready(PT3_DMA *dma);
 void pt3_dma_reset(PT3_DMA *dma);
 __u32 pt3_dma_get_status(PT3_DMA *dma);

@@ -237,6 +237,7 @@ struct ptx_softc {
 	int i2c_progress;
 
 	/* pt3 */
+	bus_dma_tag_t pt3_dmat;
 	bus_space_tag_t pt3_bt;
 	bus_space_handle_t pt3_bh;
 	struct resource *pt3_res_memory;
