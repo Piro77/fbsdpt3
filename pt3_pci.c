@@ -707,10 +707,17 @@ pt3_printf(int verbose, const char *fmt, ...)
 
 static int pt3read(struct cdev *dev, struct uio *uio, int ioflag)
 {
-        //struct ptx_softc *scp = (struct ptx_softc *) dev->si_drv1;
+        struct ptx_softc *scp = (struct ptx_softc *) dev->si_drv1;
 	int rcnt;
         PT3_CHANNEL *channel = (PT3_CHANNEL *) dev->si_drv2;
 
+	if (!channel->rstart) {
+		// XXX
+		mtx_lock(&scp->lock);
+		channel->rstart=1;
+		pt3_dma_set_enabled(channel->dma, 1);
+		mtx_unlock(&scp->lock);
+	}
 	// XXX testmode??
 	rcnt = pt3_dma_copy(channel->dma, uio, uio->uio_resid,1);
 	if (rcnt < 0) {
@@ -738,7 +745,7 @@ pt3open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 	set_tuner_sleep(channel->type, channel->tuner, 0);
 	schedule_timeout_interruptible(msecs_to_jiffies(100));
 	channel->valid = 1;
-	pt3_dma_set_enabled(channel->dma, 1);
+	//pt3_dma_set_enabled(channel->dma, 1);
 
 	mtx_unlock(&scp->lock);
 
@@ -752,6 +759,7 @@ pt3close(struct cdev *dev, int fflag, int devtype, struct thread *td)
 
 	mtx_lock(&scp->lock);
 	channel->valid = 0;
+	channel->rstart = 0;
 	pt3_dma_set_enabled(channel->dma, 0);
 	mtx_unlock(&scp->lock);
 
@@ -933,14 +941,10 @@ uint32_t command;
                 }
 		channel->id = real_channel[lp];
 		channel->valid = 0;
+		channel->rstart= 0;
                 channel->tuner = &scp->tuner[real_channel[lp] & 1];
                 channel->type = channel_type[lp];
                 channel->i2c = i2c;
-
-#if 0
-                cv_init(&channel->not_full, "ptxful");
-                cv_init(&channel->not_empty, "ptxemp");
-#endif
 
                 scp->dev[lp] = pt3_make_tuner(scp->unit, real_channel[lp] & 1, channel_type[lp]);
                 scp->dev[lp]->si_drv1 = scp;
@@ -1104,6 +1108,8 @@ sysctl_freq(SYSCTL_HANDLER_ARGS)
 	if (error || !req->newptr) {
 		return (error);
 	}
+
+	if (s->rstart) return error;
 
 	freq.frequencyno = s->freq & 0xffff;
 	freq.slot = (s->freq >> 16)& 0xffff;

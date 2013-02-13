@@ -71,6 +71,7 @@ struct _PT3_CHANNEL {
         PT3_DMA                 *dma;
 	int	id;
 	int	freq;
+	int	rstart;
 };
 
 #include "ptx.h"
