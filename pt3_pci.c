@@ -723,13 +723,12 @@ static int pt3read(struct cdev *dev, struct uio *uio, int ioflag)
 static int
 pt3open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 {
-        //struct ptx_softc *scp = (struct ptx_softc *) dev->si_drv1;
+        struct ptx_softc *scp = (struct ptx_softc *) dev->si_drv1;
         PT3_CHANNEL *channel = (PT3_CHANNEL *) dev->si_drv2;
-	FREQUENCY freq;
 
-	mtx_lock(&channel->lock);
+	mtx_lock(&scp->lock);
 	if (channel->valid) {
-		mtx_unlock(&channel->lock);
+		mtx_unlock(&scp->lock);
 		PT3_PRINTK(1, KERN_DEBUG, "device is already used.\n");
 		return EBUSY;
 	}
@@ -739,27 +738,22 @@ pt3open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 	set_tuner_sleep(channel->type, channel->tuner, 0);
 	schedule_timeout_interruptible(msecs_to_jiffies(100));
 	channel->valid = 1;
-// XXX とりあえずここでチューニングする
-	freq.frequencyno = channel->freq & 0xffff;
-	freq.slot = (channel->freq >> 16)& 0xffff;
-	SetChannel(channel, &freq);
-// XXX
-
-	mtx_unlock(&channel->lock);
 	pt3_dma_set_enabled(channel->dma, 1);
+
+	mtx_unlock(&scp->lock);
 
         return 0;
 }
 static int
 pt3close(struct cdev *dev, int fflag, int devtype, struct thread *td)
 {
-        //struct ptx_softc *scp = (struct ptx_softc *) dev->si_drv1;
+        struct ptx_softc *scp = (struct ptx_softc *) dev->si_drv1;
         PT3_CHANNEL *channel = (PT3_CHANNEL *) dev->si_drv2;
 
-	mtx_lock(&channel->lock);
+	mtx_lock(&scp->lock);
 	channel->valid = 0;
 	pt3_dma_set_enabled(channel->dma, 0);
-	mtx_unlock(&channel->lock);
+	mtx_unlock(&scp->lock);
 
 	PT3_PRINTK(7, KERN_INFO, "channel->id = %d error count %d\n",
 				channel->id,
@@ -813,6 +807,10 @@ void pt3_exit(void *p)
 	pt3_i2c_reset(dev_conf->i2c);
 	free_pt3_i2c(dev_conf->i2c);
 
+	if (mtx_initialized(&dev_conf->lock)) {
+		mtx_destroy(&dev_conf->lock);
+	}
+
 	PT3_PRINTK(0, KERN_DEBUG, "free PT3 DEVICE.\n");
 	return;
 }
@@ -862,9 +860,8 @@ uint32_t command;
 	i2c = create_pt3_i2c(scp);
 	scp->i2c = i2c;
 
+	mtx_init(&scp->lock,"ptxiic",NULL,MTX_DEF);
 	set_lnb(scp, 0);
-	//XXX
-	scp->pt3debug=7;
 
         for (i = 0; i < MAX_TUNER; i++) {
                 uint8_t tc_addr, tuner_addr;
@@ -875,14 +872,12 @@ uint32_t command;
                 pin = 0;
                 tc_addr = pt3_tc_address(pin, PT3_ISDB_S, i);
                 tuner_addr = pt3_qm_address(i);
-		device_printf(device, "pt3 tuner s%d tc %x tuner %x \n",i,tc_addr,tuner_addr);
 
                 tuner->tc_s = create_pt3_tc(i2c, tc_addr, tuner_addr);
                 tuner->qm   = create_pt3_qm(i2c, tuner->tc_s);
 
                 tc_addr = pt3_tc_address(pin, PT3_ISDB_T, i);
                 tuner_addr = pt3_mx_address(i);
-		device_printf(device, "pt3 tuner t%d tc %x tuner %x \n",i,tc_addr,tuner_addr);
 
                 tuner->tc_t = create_pt3_tc(i2c, tc_addr, tuner_addr);
                 tuner->mx   = create_pt3_mx(i2c, tuner->tc_t);
@@ -892,7 +887,6 @@ uint32_t command;
 		PT3_PRINTK(0, KERN_ERR, "fail init_all_tuner. 0x%x\n", rc);
 		goto out_err_i2c;
 	}
-	device_printf(device, "pt3 init_all_tuner complete\n");
 
 	/*
 	 * Allocate a DMA tag for the parent bus.
@@ -939,7 +933,6 @@ uint32_t command;
                 }
 		channel->id = real_channel[lp];
 		channel->valid = 0;
-		mtx_init(&channel->lock, "pt3channel", NULL, MTX_DEF);
                 channel->tuner = &scp->tuner[real_channel[lp] & 1];
                 channel->type = channel_type[lp];
                 channel->i2c = i2c;

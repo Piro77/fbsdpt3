@@ -271,6 +271,12 @@ ptx_detach (device_t device)
 			scp->pt3_rid_memory, scp->pt3_res_memory);
 		scp->pt3_res_memory = 0;
 	}
+	if (scp->dmat) {
+		bus_dma_tag_destroy(scp->dmat);
+	}
+	if (scp->pt3_dmat) {
+		bus_dma_tag_destroy(scp->pt3_dmat);
+	}
 
 		return 0;
 	}

@@ -15,7 +15,9 @@
 
  *******************************************************************************/
 
-#if defined(linux)||defined(__linux)||defined(__linux__)
+#if defined(__FreeBSD__)
+#include "pt3_misc.h"
+#else
 
 #include "version.h"
 
@@ -45,16 +47,6 @@
 
 #endif
 
-#if defined(__FreeBSD__)
-
-#include "pt3_misc.h"
-#include "pt3_qm.h"
-#include "pt3_tc.h"
-#include "pt3_bus.h"
-
-#include "ptx.h"
-
-#endif
 
 /* TUNER_S */
 void

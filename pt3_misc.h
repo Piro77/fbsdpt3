@@ -65,16 +65,12 @@ typedef struct _PT3_CHANNEL PT3_CHANNEL;
 
 struct _PT3_CHANNEL {
         __u32                   valid ;
-        __u32                   minor;
         PT3_TUNER               *tuner;
         int                             type ;
-        struct mtx    lock ;
         PT3_I2C                 *i2c;
         PT3_DMA                 *dma;
 	int	id;
 	int	freq;
-	struct cv not_full;
-	struct cv not_empty;
 };
 
 #include "ptx.h"

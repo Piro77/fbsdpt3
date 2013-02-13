@@ -16,10 +16,7 @@
  *******************************************************************************/
 
 #if defined(__FreeBSD__)
-
 #include "pt3_misc.h"
-#include "ptx.h"
-
 #else
 #include "version.h"
 
