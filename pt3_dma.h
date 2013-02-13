@@ -64,7 +64,11 @@ int pt3_dma_ready(PT3_DMA *dma);
 void pt3_dma_reset(PT3_DMA *dma);
 __u32 pt3_dma_get_status(PT3_DMA *dma);
 __u32 pt3_dma_get_ts_error_packet_count(PT3_DMA *dma);
+#if defined(__FreeBSD__)
 PT3_DMA * create_pt3_dma(void *scp, PT3_I2C *i2c, int tuner_no);
 void free_pt3_dma(void *scp, PT3_DMA *dma);
-
+#else
+PT3_DMA * create_pt3_dma(struct pci_dev *hwdev, PT3_I2C *i2c, int tuner_no);
+void free_pt3_dma(struct pci_dev *hwdev, PT3_DMA *dma);
+#endif
 #endif

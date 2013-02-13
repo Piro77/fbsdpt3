@@ -225,7 +225,11 @@ pt3_dma_build_page_descriptor(PT3_DMA *dma, int loop)
 	}
 }
 
+#if defined(__FreeBSD__)
 uint8_t
+#else
+void __iomem *
+#endif
 get_base_addr(PT3_DMA *dma)
 {
 #if defined(__FreeBSD__)
@@ -238,7 +242,11 @@ get_base_addr(PT3_DMA *dma)
 void
 pt3_dma_set_test_mode(PT3_DMA *dma, int test, __u16 init, int not, int reset)
 {
+#if defined(__FreeBSD__)
 	uint8_t base;
+#else
+	void __iomem *base;
+#endif
 	__u32 data;
 
 	base = get_base_addr(dma);
@@ -260,7 +268,11 @@ pt3_dma_set_test_mode(PT3_DMA *dma, int test, __u16 init, int not, int reset)
 void
 pt3_dma_set_enabled(PT3_DMA *dma, int enabled)
 {
+#if defined(__FreeBSD__)
 	uint8_t base;
+#else
+	void __iomem *base;
+#endif
 	__u32 data;
 	__u64 start_addr;
 #if defined(__FreeBSD__)
@@ -447,7 +459,11 @@ pt3_dma_reset(PT3_DMA *dma)
 __u32
 pt3_dma_get_ts_error_packet_count(PT3_DMA *dma)
 {
+#if defined(__FreeBSD__)
 	uint8_t base;
+#else
+	void __iomem *base;
+#endif
 	__u32 gray;
 #if defined(__FreeBSD__)
 	struct ptx_softc *scp;
@@ -469,7 +485,11 @@ pt3_dma_get_ts_error_packet_count(PT3_DMA *dma)
 __u32
 pt3_dma_get_status(PT3_DMA *dma)
 {
+#if defined(__FreeBSD__)
 	uint8_t base;
+#else
+	void __iomem *base;
+#endif
 	__u32 status;
 #if defined(__FreeBSD__)
 	struct ptx_softc *scp;
@@ -489,7 +509,11 @@ pt3_dma_get_status(PT3_DMA *dma)
 }
 
 PT3_DMA *
+#if defined(__FreeBSD__)
 create_pt3_dma(void *p, PT3_I2C *i2c, int real_index)
+#else
+reate_pt3_dma(struct pci_dev *hwdev, PT3_I2C *i2c, int real_index)
+#endif
 {
 	PT3_DMA *dma;
 	PT3_DMA_PAGE *page;
@@ -566,12 +590,20 @@ create_pt3_dma(void *p, PT3_I2C *i2c, int real_index)
 	return dma;
 fail:
 	if (dma != NULL)
+#if defined(__FreeBSD__)
 		free_pt3_dma(scp, dma);
+#else
+		free_pt3_dma(hwdev, dma);
+#endif
 	return NULL;
 }
 
 void
+#if defined(__FreeBSD__)
 free_pt3_dma(void *p, PT3_DMA *dma)
+#else
+free_pt3_dma(struct pci_dev *hwdev, PT3_DMA *dma)
+#endif
 {
 	PT3_DMA_PAGE *page;
 	__u32 i;
@@ -607,7 +639,6 @@ free_pt3_dma(void *p, PT3_DMA *dma)
 }
 
 #if defined(__FreeBSD__)
-
 static uint8_t *
 alloc_dmabuf(struct ptx_softc *scp, PT3_DMA_PAGE *page, bus_dma_tag_t dmat)
 {
@@ -644,7 +675,6 @@ alloc_dmabuf(struct ptx_softc *scp, PT3_DMA_PAGE *page, bus_dma_tag_t dmat)
 	page->addr = (uintptr_t)page->pa;
 	return (uint8_t *)page->va;
 }
-#endif
 static void
 set_addr(void *arg, bus_dma_segment_t *segs, int nseg, int error)
 {
@@ -665,3 +695,4 @@ free_dmabuf(PT3_DMA_PAGE *page, bus_dma_tag_t dmat)
 		memset(page, 0, sizeof(PT3_DMA_PAGE));
 	}
 }
+#endif
