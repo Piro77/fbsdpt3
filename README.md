@@ -3,10 +3,16 @@ fbsdpt3
 FreeBSD用のPT3デバイスドライバ
 
 http://code.google.com/p/ptx-kmod/
+
 https://github.com/m-tsudo/pt3
 
+
 この辺を参考にしながら。
-今のところ、全く動きません。
+
+地デジチューナーが動作しました。BSは不明。
+
+予期せず固まりますので要注意状態。(checksignalを並列実施,ドライバのアンロードなど)
+
 
 以下オリジナル版のREADME
 
