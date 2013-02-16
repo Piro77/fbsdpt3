@@ -867,6 +867,7 @@ uint32_t command;
 
 	i2c = create_pt3_i2c(scp);
 	scp->i2c = i2c;
+	scp->i2c_progress = 0;
 
 	mtx_init(&scp->lock,"ptxiic",NULL,MTX_DEF);
 	set_lnb(scp, 0);
@@ -909,7 +910,7 @@ uint32_t command;
 	    &scp->dmat);
 	if (error) {
 		device_printf(device, "could not create bus DMA tag(%d)\n", error);
-		//goto out_err;
+		goto out_err_i2c;
 	}
 	error = bus_dma_tag_create(NULL,
 	    4, 0, // alignment=4byte, boundary=norestriction
@@ -921,10 +922,8 @@ uint32_t command;
 	    &scp->pt3_dmat);
 	if (error) {
 		device_printf(device, "could not create bus DMA tag(%d)\n", error);
-		//goto out_err;
+		goto out_err_i2c;
 	}
-
-
 
 
         for (lp = 0; lp < MAX_CHANNEL; lp++) {
@@ -952,7 +951,6 @@ uint32_t command;
 
 	}	
 	pt3_sysctl_init(scp);
-	device_printf(device, "PT3 init complete\n");
  
 return 0;
 out_err_dma:
