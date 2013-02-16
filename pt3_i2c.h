@@ -21,7 +21,6 @@
 #if defined(__FreeBSD__)
 
 typedef struct _PT3_I2C {
-	struct mtx lock;
 	void *scp;
 } PT3_I2C;
 #else

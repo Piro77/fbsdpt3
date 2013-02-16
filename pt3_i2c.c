@@ -146,7 +146,12 @@ pt3_i2c_run(PT3_I2C *i2c, PT3_BUS *bus, __u32 *ack, int copy)
 #if defined(__FreeBSD__)
 	struct ptx_softc *scp;
 	scp = i2c->scp;
-	mtx_lock(&i2c->lock);
+	mtx_lock(&scp->lock);
+	while(scp->i2c_progress) {
+		msleep(&scp->i2c_progress, &scp->lock, 0|PCATCH, "ptxi2w", 0);
+	}
+	scp->i2c_progress = 1;
+	mtx_unlock(&scp->lock);
 #else
 	mutex_lock(&i2c->lock);
 #endif
@@ -178,7 +183,10 @@ i));
 #endif
 
 #if defined(__FreeBSD__)
-	mtx_unlock(&i2c->lock);
+	mtx_lock(&scp->lock);
+	scp->i2c_progress = 0;
+	wakeup(&scp->i2c_progress);
+	mtx_unlock(&scp->lock);
 #else
 	mutex_unlock(&i2c->lock);
 #endif
@@ -226,7 +234,6 @@ create_pt3_i2c(void *p)
 	if (i2c == NULL)
 		return NULL;
 	i2c->scp = scp;
-	mtx_init(&i2c->lock, "pt3i2c", NULL, MTX_DEF);
 
 	return i2c;
 }
