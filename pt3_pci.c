@@ -739,15 +739,14 @@ pt3open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 		PT3_PRINTK(1, KERN_DEBUG, "device is already used.\n");
 		return EBUSY;
 	}
+	channel->valid = 1;
+	mtx_unlock(&scp->lock);
+
 	PT3_PRINTK(7, KERN_DEBUG, "selected tuner_no=%d type=%d\n",
 		channel->tuner->tuner_no, channel->type);
 
 	set_tuner_sleep(channel->type, channel->tuner, 0);
 	schedule_timeout_interruptible(msecs_to_jiffies(100));
-	channel->valid = 1;
-	//pt3_dma_set_enabled(channel->dma, 1);
-
-	mtx_unlock(&scp->lock);
 
         return 0;
 }
