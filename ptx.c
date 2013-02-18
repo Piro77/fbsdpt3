@@ -151,96 +151,96 @@ ptx_attach(device_t device)
 	scp->bt = rman_get_bustag(scp->res_memory);
 	scp->bh = rman_get_bushandle(scp->res_memory);
 
-if (scp->cardtype == PT3) {
-if (pt3_init(scp)) {
-		device_printf(device, "Error pt3_init\n");
-		goto out_err;
-}
-}
-else {
-	if (xc3s_init(scp)) {
-		device_printf(device, "Error xc3s_init\n");
-		goto out_err;
-	}
-
-	// チューナリセット
-	scp->lnb = 0;
-
-	settuner_reset(scp, LNB_OFF, TUNER_POWER_ON_RESET_ENABLE);
-	ptx_pause("ptxini", MSTOTICK(50));
-
-	settuner_reset(scp, LNB_OFF, TUNER_POWER_ON_RESET_DISABLE);
-	ptx_pause("ptxini", MSTOTICK(10));
-
-	mtx_init(&scp->lock, "ptxiic", NULL, MTX_DEF);
-	scp->i2c_state = STATE_STOP;
-	scp->i2c_progress = 0;
-
-	// Tuner/Stream 初期化処理
-	for (tuner = 0; tuner < 2; ++tuner) {
-		if (ptx_tuner_init(scp, tuner))
+	if (scp->cardtype == PT3) {
+		if (pt3_init(scp)) {
+			device_printf(device, "Error pt3_init\n");
 			goto out_err;
-
-		// |  1 | チューナー番号0 ISDB-S |
-		// |  2 | チューナー番号0 ISDB-T |
-		// |  3 | チューナー番号1 ISDB-S |
-		// |  4 | チューナー番号1 ISDB-T |
-		for (i = 0; i < 2; ++i) {
-			// 0=ISDB-S 1=ISDB-T
-			struct ptx_stream *s = &scp->stream[tuner*2+i];
-
-			s->id = tuner*2+i + 1;
-
-			s->wp = 0;
-			s->chunk_filled = 0;
-			s->rp = 0;
-			s->chunk_used = 0;
-
-			s->buf = malloc(DATA_CHUNK_SIZE * DATA_CHUNK_NUM,
-			    M_DEVBUF, M_NOWAIT);
-			if (s->buf == NULL) {
-				device_printf(scp->device, "malloc failed\n");
-				goto out_err;
-			}
-			mtx_init(&s->lock, "ptxstream", NULL, MTX_DEF);
-			cv_init(&s->not_full, "ptxful");
-			cv_init(&s->not_empty, "ptxemp");
-
-			scp->dev[s->id - 1] = ptx_make_tuner(scp->unit, tuner, i);
-			scp->dev[s->id - 1]->si_drv1 = scp;
-			scp->dev[s->id - 1]->si_drv2 = s;
-
-			set_sleepmode(scp, s, TYPE_SLEEP);
 		}
+	}
+	else {
+		if (xc3s_init(scp)) {
+			device_printf(device, "Error xc3s_init\n");
+			goto out_err;
+		}
+
+		// チューナリセット
+		scp->lnb = 0;
+
+		settuner_reset(scp, LNB_OFF, TUNER_POWER_ON_RESET_ENABLE);
 		ptx_pause("ptxini", MSTOTICK(50));
-	}
 
-	/*
-	 * Allocate a DMA tag for the parent bus.
-	 */
-	error = bus_dma_tag_create(NULL,
-	    4, 0, // alignment=4byte, boundary=norestriction
-	    BUS_SPACE_MAXADDR_32BIT, BUS_SPACE_MAXADDR,
-	    NULL, NULL, // no filtfunc/arg
-	    DMA_PAGE_SIZE, 1, DMA_PAGE_SIZE, // maxsize, 1segs, segsize
-	    0,
-	    NULL, NULL, // no lockfunc/arg
-	    &scp->dmat);
-	if (error) {
-		device_printf(device, "could not create bus DMA tag(%d)\n", error);
-		goto out_err;
-	}
+		settuner_reset(scp, LNB_OFF, TUNER_POWER_ON_RESET_DISABLE);
+		ptx_pause("ptxini", MSTOTICK(10));
 
-	ptx_sysctl_init(device, scp);
+		mtx_init(&scp->lock, "ptxiic", NULL, MTX_DEF);
+		scp->i2c_state = STATE_STOP;
+		scp->i2c_progress = 0;
 
-	if (ptx_dma_init(scp)) {
-		goto out_err;
-	}
+		// Tuner/Stream 初期化処理
+		for (tuner = 0; tuner < 2; ++tuner) {
+			if (ptx_tuner_init(scp, tuner))
+				goto out_err;
 
-	if (ptx_proc_start(scp)) {
-		goto out_err;
+			// |  1 | チューナー番号0 ISDB-S |
+			// |  2 | チューナー番号0 ISDB-T |
+			// |  3 | チューナー番号1 ISDB-S |
+			// |  4 | チューナー番号1 ISDB-T |
+			for (i = 0; i < 2; ++i) {
+				// 0=ISDB-S 1=ISDB-T
+				struct ptx_stream *s = &scp->stream[tuner*2+i];
+
+				s->id = tuner*2+i + 1;
+
+				s->wp = 0;
+				s->chunk_filled = 0;
+				s->rp = 0;
+				s->chunk_used = 0;
+
+				s->buf = malloc(DATA_CHUNK_SIZE * DATA_CHUNK_NUM,
+				    M_DEVBUF, M_NOWAIT);
+				if (s->buf == NULL) {
+					device_printf(scp->device, "malloc failed\n");
+					goto out_err;
+				}
+				mtx_init(&s->lock, "ptxstream", NULL, MTX_DEF);
+				cv_init(&s->not_full, "ptxful");
+				cv_init(&s->not_empty, "ptxemp");
+
+				scp->dev[s->id - 1] = ptx_make_tuner(scp->unit, tuner, i);
+				scp->dev[s->id - 1]->si_drv1 = scp;
+				scp->dev[s->id - 1]->si_drv2 = s;
+
+				set_sleepmode(scp, s, TYPE_SLEEP);
+			}
+			ptx_pause("ptxini", MSTOTICK(50));
+		}
+
+		/*
+		 * Allocate a DMA tag for the parent bus.
+		 */
+		error = bus_dma_tag_create(NULL,
+		    4, 0, // alignment=4byte, boundary=norestriction
+		    BUS_SPACE_MAXADDR_32BIT, BUS_SPACE_MAXADDR,
+		    NULL, NULL, // no filtfunc/arg
+		    DMA_PAGE_SIZE, 1, DMA_PAGE_SIZE, // maxsize, 1segs, segsize
+		    0,
+		    NULL, NULL, // no lockfunc/arg
+		    &scp->dmat);
+		if (error) {
+			device_printf(device, "could not create bus DMA tag(%d)\n", error);
+			goto out_err;
+		}
+
+		ptx_sysctl_init(device, scp);
+
+		if (ptx_dma_init(scp)) {
+			goto out_err;
+		}
+
+		if (ptx_proc_start(scp)) {
+			goto out_err;
+		}
 	}
-}
 
 	return 0;
 
@@ -259,24 +259,24 @@ ptx_detach (device_t device)
 
 	if (scp->cardtype == PT3) {
 
-	pt3_exit(scp);
+		pt3_exit(scp);
 
-	if (scp->res_memory) {
-		bus_release_resource(device, SYS_RES_MEMORY,
-			scp->rid_memory, scp->res_memory);
-		scp->res_memory = 0;
-	}
-	if (scp->pt3_res_memory) {
-		bus_release_resource(device, SYS_RES_MEMORY,
-			scp->pt3_rid_memory, scp->pt3_res_memory);
-		scp->pt3_res_memory = 0;
-	}
-	if (scp->dmat) {
-		bus_dma_tag_destroy(scp->dmat);
-	}
-	if (scp->pt3_dmat) {
-		bus_dma_tag_destroy(scp->pt3_dmat);
-	}
+		if (scp->res_memory) {
+			bus_release_resource(device, SYS_RES_MEMORY,
+				scp->rid_memory, scp->res_memory);
+			scp->res_memory = 0;
+		}
+		if (scp->pt3_res_memory) {
+			bus_release_resource(device, SYS_RES_MEMORY,
+				scp->pt3_rid_memory, scp->pt3_res_memory);
+			scp->pt3_res_memory = 0;
+		}
+		if (scp->dmat) {
+			bus_dma_tag_destroy(scp->dmat);
+		}
+		if (scp->pt3_dmat) {
+			bus_dma_tag_destroy(scp->pt3_dmat);
+		}
 
 		return 0;
 	}

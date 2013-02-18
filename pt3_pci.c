@@ -695,8 +695,9 @@ void
 pt3_printf(int verbose, const char *fmt, ...)
 {
 	struct ptx_softc *scp;
+	// XXX PT3が複数あっても最後に初期化したユニットでしか表示されない
 	scp = device_get_softc(pt3dev);
-        va_list ap;
+	va_list ap;
 	if (scp && verbose <= scp->pt3debug) {
         	printf("%s: ", device_get_nameunit(pt3dev));
         	va_start(ap, fmt);
@@ -712,13 +713,11 @@ static int pt3read(struct cdev *dev, struct uio *uio, int ioflag)
         PT3_CHANNEL *channel = (PT3_CHANNEL *) dev->si_drv2;
 
 	if (!channel->rstart) {
-		// XXX
 		mtx_lock(&scp->lock);
 		channel->rstart=1;
 		pt3_dma_set_enabled(channel->dma, 1);
 		mtx_unlock(&scp->lock);
 	}
-	// XXX testmode??
 	rcnt = pt3_dma_copy(channel->dma, uio, uio->uio_resid,1);
 	if (rcnt < 0) {
 		PT3_PRINTK(1, KERN_INFO, "fail copy_to_user.\n");
@@ -823,20 +822,20 @@ void pt3_exit(void *p)
 }
 int pt3_init(void *p)
 {
-struct ptx_softc *scp;
-int i,error,lp,rc;
-device_t device;
-scp = p;
-pt3dev = device = scp->device;
+	struct ptx_softc *scp;
+	int i,error,lp,rc;
+	device_t device;
+	scp = p;
+	pt3dev = device = scp->device;
 
-PT3_I2C	*i2c;
-PT3_TUNER *tuner;
-PT3_CHANNEL *channel;
-uint32_t command;
+	PT3_I2C	*i2c;
+	PT3_TUNER *tuner;
+	PT3_CHANNEL *channel;
+	uint32_t command;
 
-	scp->pt3_rid_memory = PCIR_BAR(2); /* PCIR_BAR(2)でいいのか?? */
+	scp->pt3_rid_memory = PCIR_BAR(2);
 	scp->pt3_res_memory = bus_alloc_resource_any(device, SYS_RES_MEMORY,
-	    &scp->pt3_rid_memory, RF_ACTIVE);
+		&scp->pt3_rid_memory, RF_ACTIVE);
 	if (! scp->pt3_res_memory) {
 		device_printf(device, "could not map memory\n");
 		return ENXIO;
