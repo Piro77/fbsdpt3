@@ -357,6 +357,10 @@ set_tuner_sleep(int isdb, PT3_TUNER *tuner, int sleep)
 {
 	STATUS status;
 
+#if defined(__FreeBSD__)
+	/* save sleep state */
+	tuner->issleep = sleep;
+#endif
 	switch (isdb) {
 	case PT3_ISDB_S :
 		PT3_PRINTK(1, KERN_INFO, "TUNER %p ISDB_S %s\n", tuner,
@@ -744,8 +748,10 @@ pt3open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 	PT3_PRINTK(7, KERN_DEBUG, "selected tuner_no=%d type=%d\n",
 		channel->tuner->tuner_no, channel->type);
 
-	set_tuner_sleep(channel->type, channel->tuner, 0);
-	schedule_timeout_interruptible(msecs_to_jiffies(100));
+	if (channel->tuner->issleep) {
+		set_tuner_sleep(channel->type, channel->tuner, 0);
+		schedule_timeout_interruptible(msecs_to_jiffies(100));
+	}
 
         return 0;
 }
@@ -939,15 +945,15 @@ int pt3_init(void *p)
 		channel->id = real_channel[lp];
 		channel->valid = 0;
 		channel->rstart= 0;
-                channel->tuner = &scp->tuner[real_channel[lp] & 1];
-                channel->type = channel_type[lp];
-                channel->i2c = i2c;
+		channel->tuner = &scp->tuner[real_channel[lp] & 1];
+		channel->type = channel_type[lp];
+		channel->i2c = i2c;
 
-                scp->dev[lp] = pt3_make_tuner(scp->unit, real_channel[lp] & 1, channel_type[lp]);
-                scp->dev[lp]->si_drv1 = scp;
-                scp->dev[lp]->si_drv2 = channel;
+		scp->dev[lp] = pt3_make_tuner(scp->unit, real_channel[lp] & 1, channel_type[lp]);
+		scp->dev[lp]->si_drv1 = scp;
+		scp->dev[lp]->si_drv2 = channel;
 
-	}	
+	}
 	pt3_sysctl_init(scp);
  
 return 0;
@@ -1107,6 +1113,10 @@ sysctl_freq(SYSCTL_HANDLER_ARGS)
 
 	if (s->rstart) return error;
 
+	if (s->tuner->issleep) {
+		set_tuner_sleep(s->type, s->tuner, 0);
+		schedule_timeout_interruptible(msecs_to_jiffies(100));
+	}
 	freq.frequencyno = s->freq & 0xffff;
 	freq.slot = (s->freq >> 16)& 0xffff;
 	return SetChannel(s, &freq);
