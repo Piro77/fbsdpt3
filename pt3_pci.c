@@ -1111,8 +1111,6 @@ sysctl_freq(SYSCTL_HANDLER_ARGS)
 		return (error);
 	}
 
-	if (s->rstart) return error;
-
 	if (s->tuner->issleep) {
 		set_tuner_sleep(s->type, s->tuner, 0);
 		schedule_timeout_interruptible(msecs_to_jiffies(100));
