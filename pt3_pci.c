@@ -359,7 +359,7 @@ set_tuner_sleep(int isdb, PT3_TUNER *tuner, int sleep)
 
 #if defined(__FreeBSD__)
 	/* save sleep state */
-	tuner->issleep = sleep;
+	tuner->issleep[isdb] = sleep;
 #endif
 	switch (isdb) {
 	case PT3_ISDB_S :
@@ -748,7 +748,7 @@ pt3open(struct cdev *dev, int oflags, int devtype, struct thread *td)
 	PT3_PRINTK(7, KERN_DEBUG, "selected tuner_no=%d type=%d\n",
 		channel->tuner->tuner_no, channel->type);
 
-	if (channel->tuner->issleep) {
+	if (channel->tuner->issleep[channel->type]) {
 		set_tuner_sleep(channel->type, channel->tuner, 0);
 		schedule_timeout_interruptible(msecs_to_jiffies(100));
 	}
@@ -1111,7 +1111,7 @@ sysctl_freq(SYSCTL_HANDLER_ARGS)
 		return (error);
 	}
 
-	if (s->tuner->issleep) {
+	if (s->tuner->issleep[s->type]) {
 		set_tuner_sleep(s->type, s->tuner, 0);
 		schedule_timeout_interruptible(msecs_to_jiffies(100));
 	}

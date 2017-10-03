@@ -66,7 +66,7 @@ ptx_sysctl_init(device_t device, struct ptx_softc *scp)
 	    scp->dev[2], 0, sysctl_signal, "I", "signal strength");
 
 	soid = SYSCTL_ADD_NODE(scl, sol,
-	    OID_AUTO, "t1", CTLFLAG_RD, 0, "ISDB-S tuner1");
+	    OID_AUTO, "t1", CTLFLAG_RD, 0, "ISDB-T tuner1");
 
 	SYSCTL_ADD_PROC(scl, SYSCTL_CHILDREN(soid),
 	    OID_AUTO, "freq", CTLTYPE_INT|CTLFLAG_WR|CTLFLAG_ANYBODY,

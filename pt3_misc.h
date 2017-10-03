@@ -58,7 +58,7 @@ typedef struct _PT3_TUNER {
         PT3_TC *tc_t;
         PT3_QM *qm;
         PT3_MX *mx;
-	int issleep;
+	int issleep[2];  /* ISDB-T & S sleep status(issleep used pt3_pci.c), qm/mx->sleep ?? */
 } PT3_TUNER;
 
 typedef struct _PT3_CHANNEL PT3_CHANNEL;
