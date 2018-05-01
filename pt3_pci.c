@@ -788,9 +788,14 @@ void pt3_exit(void *p)
 
 	for (lp = 0; lp < MAX_CHANNEL; lp++) {
 		channel = dev_conf->dev[lp]->si_drv2;
+		mtx_lock(&dev_conf->lock);
+		channel->valid = 0;
+		channel->rstart = 0;
 		if (channel->dma->enabled)
 			pt3_dma_set_enabled(channel->dma, 0);
+		mtx_unlock(&dev_conf->lock);
 		set_tuner_sleep(channel->type, channel->tuner, 1);
+	  schedule_timeout_interruptible(msecs_to_jiffies(50));
 	}
 	set_lnb(dev_conf, 0);
 	for (lp = 0; lp < MAX_TUNER; lp++) {
