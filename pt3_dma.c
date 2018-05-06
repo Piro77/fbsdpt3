@@ -323,7 +323,11 @@ pt3_dma_set_enabled(PT3_DMA *dma, int enabled)
 
 			if (!BIT_SHIFT_MASK(data, 0, 1))
 				break;
+#if defined(__FreeBSD__)
+			DELAY(1000);
+#else
 			schedule_timeout_interruptible(msecs_to_jiffies(1));
+#endif
 		}
 	}
 	dma->enabled = enabled;
