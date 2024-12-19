@@ -1132,7 +1132,7 @@ sysctl_signal(SYSCTL_HANDLER_ARGS)
 	//struct ptx_softc *scp = (struct ptx_softc *)dev->si_drv1;
 	PT3_CHANNEL *s = (PT3_CHANNEL *)dev->si_drv2;
 
-	int status, signal, curr_agc, max_agc;
+	int __unused status, signal, curr_agc, max_agc;
 
 	if (req->newptr) {
 		return EPERM;

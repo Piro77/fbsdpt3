@@ -382,7 +382,7 @@ STATUS
 pt3_qm_set_sleep(PT3_QM *qm, int sleep)
 {
 	STATUS status;
-	PT3_TS_PIN_MODE mode;
+	PT3_TS_PIN_MODE __unused mode;
 
 	mode = sleep ? PT3_TS_PIN_MODE_LOW : PT3_TS_PIN_MODE_NORMAL;
 	qm->param.standby = sleep;
