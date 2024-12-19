@@ -108,7 +108,7 @@ read_dmabuf(struct ptx_softc *scp, uint32_t *dataptr)
 	} micro;
 
 	uint8_t id;
-	uint8_t count;
+	uint8_t __unused count;
 	uint8_t st;
 	uint8_t er;
 
