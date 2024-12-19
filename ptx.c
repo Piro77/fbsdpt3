@@ -29,7 +29,6 @@ __FBSDID("$FreeBSD$");
 
 
 
-static devclass_t ptx_devclass;
 
 /*
  ***************************************
@@ -56,7 +55,12 @@ static driver_t ptx_driver = {
 	sizeof(struct ptx_softc),
 };
 
-DRIVER_MODULE(ptx, pci, ptx_driver, ptx_devclass, 0, 0);
+#if __FreeBSD_version >= 1400058
+ DRIVER_MODULE(ptx, pci, ptx_driver, 0, 0);
+#else
+ static devclass_t ptx_devclass;
+ DRIVER_MODULE(ptx, pci, ptx_driver, ptx_devclass, 0, 0);
+#endif
 MODULE_VERSION(ptx, 1);
 
 #define VENDOR_XILINX 0x10ee
